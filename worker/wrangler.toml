@@ -1,0 +1,32 @@
+name = "flood-watch"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Worker เดียวเสิร์ฟทั้งหน้าเว็บ (static assets จาก nuxt generate) และ API — origin เดียวกัน ไม่ต้องตั้ง CORS
+# build หน้าเว็บก่อน deploy: `npm run build:web` ที่ root (หรือ `npm run deploy` ทำให้ทั้งคู่)
+[assets]
+directory = "../web/.output/public"
+binding = "ASSETS"
+not_found_handling = "404-page"
+run_worker_first = ["/api/*", "/health"]
+
+# Cron ทุก 10 นาที (KV free tier เขียนได้ 1,000 ครั้ง/วัน — เราเขียน 1 ครั้ง/รอบ = 144/วัน)
+[triggers]
+crons = ["*/10 * * * *"]
+
+[[kv_namespaces]]
+binding = "FLOOD_DATA"
+id = "d061225e70414035ae1b97020ee896d8"
+
+[vars]
+# origin อื่นที่อนุญาตให้เรียก API (คั่นด้วย ,) — หน้าเว็บอยู่ origin เดียวกับ API อยู่แล้ว ใส่เผื่อ dev เท่านั้น
+ALLOWED_ORIGIN = "http://localhost:3000,http://localhost:3456"
+
+# secrets (ห้ามใส่ในไฟล์นี้):
+#   wrangler secret put INGEST_TOKEN     # สำหรับ PUT /api/ingest จาก scripts/ingest.ts หรือ GitHub Actions
+#   wrangler secret put GISTDA_API_KEY   # key GISTDA แบบไม่จำกัด สำหรับ cron
+
+[observability]
+enabled = true

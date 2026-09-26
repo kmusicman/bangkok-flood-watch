@@ -1,0 +1,16 @@
+{
+  "name": "flood-watch-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "cron:test": "wrangler dev --test-scheduled",
+    "kv:create": "wrangler kv namespace create FLOOD_DATA"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.0.0",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.41.0"
+  }
+}

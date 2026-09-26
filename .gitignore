@@ -1,0 +1,13 @@
+node_modules/
+.output/
+.nuxt/
+.wrangler/
+dist/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+# ข้อมูลสดสำหรับ dev — สร้างใหม่ด้วย `npm run ingest:local`
+web/public/data/
+.dev.vars

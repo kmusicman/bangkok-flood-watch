@@ -1,0 +1,24 @@
+{
+  "name": "bangkok-flood-watch",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "web",
+    "worker"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "ingest": "node scripts/ingest.ts",
+    "ingest:local": "node scripts/ingest.ts --out web/public/data --snapshot",
+    "ingest:push": "node scripts/ingest.ts --push",
+    "check": "node scripts/check-sources.ts",
+    "dev": "npm run dev -w web",
+    "generate": "npm run generate -w web",
+    "build:web": "NUXT_IGNORE_LOCK=1 NUXT_PUBLIC_DATA_BASE=/api/data npm run generate -w web && rm -rf web/.output/public/data",
+    "deploy": "npm run build:web && npm run deploy -w worker",
+    "deploy:worker": "npm run deploy -w worker"
+  }
+}

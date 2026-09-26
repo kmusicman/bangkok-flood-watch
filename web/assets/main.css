@@ -1,0 +1,108 @@
+:root {
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --text: #151b26;
+  --muted: #5b6573;
+  --border: #dde2ea;
+  --brand: #0b6fb8; /* ฟ้าเข้ม — ตัวอักษรขาวบนพื้นนี้ contrast ≈ 5.3:1 */
+  --brand-text: #ffffff;
+  --danger: #c62828;
+  --normal: #2e7d32;
+  --watch: #e6a100;
+  --warning: #ef6c00;
+  --critical: #c62828;
+  --chip: #eef1f6;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1319;
+    --card: #181d27;
+    --text: #e9edf3;
+    --muted: #9ba5b4;
+    --border: #2a3242;
+    --brand: #1a7fd0;
+    --chip: #232a37;
+    --shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans Thai', Sarabun, Thonburi, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+}
+a { color: var(--brand); }
+@media (prefers-color-scheme: dark) { a { color: #7cc4ff; } }
+button { font: inherit; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 0 12px; }
+
+/* ปุ่มใหญ่ กดง่ายบนมือถือ (≥ 44px) */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); text-decoration: none; cursor: pointer; font-weight: 600;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--brand); color: var(--brand-text); border-color: transparent; }
+.btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
+.btn-block { width: 100%; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--chip); color: var(--text);
+  font-size: 14px; cursor: pointer; white-space: nowrap;
+}
+.chip[aria-pressed='true'] { background: var(--brand); color: #fff; border-color: transparent; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.dot-normal { background: var(--normal); }
+.dot-watch { background: var(--watch); }
+.dot-warning { background: var(--warning); }
+.dot-critical { background: var(--critical); }
+
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--chip); color: var(--muted);
+}
+.badge-stale { background: #fff3cd; color: #7a5a00; }
+.badge-snapshot { background: #e3e8ff; color: #2b3a8a; }
+@media (prefers-color-scheme: dark) {
+  .badge-stale { background: #4a3a00; color: #ffd76a; }
+  .badge-snapshot { background: #24305e; color: #b9c6ff; }
+}
+
+.banner { padding: 10px 14px; border-radius: 12px; font-size: 14px; }
+.banner-warn { background: #fff3cd; color: #5c4400; border: 1px solid #f1d98a; }
+.banner-error { background: #fde2e2; color: #7a1a1a; border: 1px solid #f2b3b3; }
+@media (prefers-color-scheme: dark) {
+  .banner-warn { background: #3d3000; color: #ffe08a; border-color: #6b5400; }
+  .banner-error { background: #4a1414; color: #ffb3b3; border-color: #7a2323; }
+}
+
+input, select {
+  font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; min-height: 44px; padding: 8px 12px; max-width: 100%;
+}
+
+/* popup ของ MapLibre ให้เข้ากับธีม */
+.maplibregl-popup-content {
+  background: var(--card) !important; color: var(--text) !important; border-radius: 12px !important;
+  padding: 12px 14px !important; box-shadow: var(--shadow) !important; max-width: 280px; font-size: 14px;
+}
+.maplibregl-popup-tip { border-top-color: var(--card) !important; border-bottom-color: var(--card) !important; }
+.maplibregl-popup-close-button { font-size: 20px; padding: 4px 8px; color: var(--muted) !important; }
+.popup-title { font-weight: 700; margin: 0 20px 4px 0; }
+.popup-value { font-size: 18px; font-weight: 700; }
+.popup-photo { width: 100%; border-radius: 8px; margin-top: 8px; display: block; }

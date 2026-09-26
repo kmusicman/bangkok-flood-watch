@@ -1,0 +1,19 @@
+{
+  "name": "flood-watch-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node ../scripts/seed-dev-data.ts",
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "pregenerate": "node ../scripts/seed-dev-data.ts",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.11.0",
+    "nuxt": "^3.21.11",
+    "vue": "^3.5.0"
+  }
+}
