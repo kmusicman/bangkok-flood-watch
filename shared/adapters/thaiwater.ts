@@ -65,9 +65,16 @@ export function waterlevelLevel(r: TwWaterlevelRow): Level {
 /** เกณฑ์กรมอุตุฯ: ฝนหนัก 35.1–90 มม., หนักมาก > 90 มม.; > 150 มม. ถือว่าวิกฤต */
 export const rainLevel = (mm: number): Level => (mm > 150 ? 'critical' : mm > 90 ? 'warning' : mm > 35 ? 'watch' : 'normal');
 
+/** สสน. บางครั้งตอบ JSON ที่ไม่ใช่รูปแบบปกติ (เช่น error/limit) — โยน error ที่บอกรูปร่างจริงแทน "object is not iterable" */
+function rows<T>(data: unknown, what: string): T[] {
+  if (Array.isArray(data)) return data as T[];
+  const snippet = JSON.stringify(data ?? null)?.slice(0, 160);
+  throw new Error(`thaiwater ${what}: unexpected response (${typeof data}) ${snippet}`);
+}
+
 export function parseWaterlevel(raw: TwWaterlevelRaw, now = Date.now()): FloodFeature[] {
   const out: FloodFeature[] = [];
-  for (const r of raw.waterlevel_data?.data ?? []) {
+  for (const r of rows<TwWaterlevelRow>(raw?.waterlevel_data?.data ?? (raw as unknown as { message?: string }), 'waterlevel_load')) {
     const st = r.station;
     if (!st || r.waterlevel_msl == null || !validCoord(st.tele_station_long, st.tele_station_lat)) continue;
     const observed_at = toIso(r.waterlevel_datetime);
@@ -98,7 +105,7 @@ export function parseWaterlevel(raw: TwWaterlevelRaw, now = Date.now()): FloodFe
 export function parseRain(raw: TwRainRaw, opts: { minMm?: number; now?: number } = {}): FloodFeature[] {
   const { minMm = 10, now = Date.now() } = opts;
   const out: FloodFeature[] = [];
-  for (const r of raw.data ?? []) {
+  for (const r of rows<TwRainRow>(raw?.data ?? (raw as unknown as { message?: string }), 'rain_24h')) {
     const st = r.station;
     if (!st || r.rain_24h == null || !validCoord(st.tele_station_long, st.tele_station_lat)) continue;
     const mm = Number(r.rain_24h);
@@ -125,8 +132,10 @@ export function parseRain(raw: TwRainRaw, opts: { minMm?: number; now?: number }
   return out;
 }
 
-export const fetchWaterlevel = async () => parseWaterlevel(await getJson<TwWaterlevelRaw>(`${TW_BASE}/waterlevel_load`, { timeoutMs: 30_000 }));
-export const fetchRain = async () => parseRain(await getJson<TwRainRaw>(`${TW_BASE}/rain_24h`, { timeoutMs: 30_000 }));
+// ระบุตัวตนตรงๆ กับ สสน. (ไม่ปลอมเป็นเบราว์เซอร์) — Worker ของ Cloudflare ไม่ส่ง User-Agent ให้เอง
+const TW_HEADERS = { 'user-agent': 'BangkokFloodWatch/0.1 (+https://bangkokflood.com)', accept: 'application/json' };
+export const fetchWaterlevel = async () => parseWaterlevel(await getJson<TwWaterlevelRaw>(`${TW_BASE}/waterlevel_load`, { timeoutMs: 45_000, headers: TW_HEADERS }));
+export const fetchRain = async () => parseRain(await getJson<TwRainRaw>(`${TW_BASE}/rain_24h`, { timeoutMs: 45_000, headers: TW_HEADERS }));
 
 /** relay ของเซนเซอร์ถนน กทม. บน สสน. — ใช้เป็น fallback เมื่อดึงจาก กทม. ตรงไม่ได้ (บางครั้งค้างหลายชั่วโมง) */
 export const fetchFloodRoadRelay = async () => getJson<TwFloodRoadRaw>(`${TW_BASE}/flood_road`, { timeoutMs: 20_000 });

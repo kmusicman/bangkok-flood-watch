@@ -69,12 +69,13 @@ if (snapshot) {
 }
 if (push) {
   if (!workerUrl || !token) throw new Error('--push needs WORKER_URL and INGEST_TOKEN');
-  // ส่งเฉพาะแหล่งที่ดึงสำเร็จ — Worker จะ merge กับชุดเดิมเอง
-  const sources = Object.fromEntries(ok.map((id) => [id, bundle.sources[id]]));
+  // ส่ง bundle เต็ม (merge ชุดเดิมจาก Worker มาแล้วใน ingestAll) แบบ x-ingest-mode: full — Worker เก็บ text ตรงๆ ไม่ต้อง parse
+  // (cron ใน Worker เองโดนลิมิต CPU 10 ms ของ free plan ตอน parse JSON ของ สสน./Traffy)
+  if (!ok.length) { console.error('nothing succeeded; not pushing'); process.exit(2); }
   const r = await fetch(`${workerUrl}/api/ingest`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ sources }),
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, 'x-ingest-mode': 'full' },
+    body: json,
     signal: AbortSignal.timeout(60_000),
   });
   console.log('push', r.status, await r.text());

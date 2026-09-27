@@ -11,3 +11,4 @@ dist/
 # ข้อมูลสดสำหรับ dev — สร้างใหม่ด้วย `npm run ingest:local`
 web/public/data/
 .dev.vars
+web/data/areas-static.json

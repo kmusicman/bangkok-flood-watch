@@ -2,7 +2,15 @@ name = "flood-watch"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
-workers_dev = true
+# ปิดโฮสต์ *.workers.dev — ใช้โดเมนจริงอย่างเดียว (static assets ตอบก่อน Worker จึง redirect ในโค้ดไม่ได้)
+workers_dev = false
+
+# โดเมนจริง (zone bangkokflood.com อยู่ในบัญชีเดียวกัน) — wrangler สร้าง DNS + ใบรับรองให้เอง
+# www เสิร์ฟหน้าเว็บเหมือน apex; ถ้าต้องการ redirect www → apex ให้ตั้ง Redirect Rule ใน dashboard ของ zone (ฟรี)
+routes = [
+  { pattern = "bangkokflood.com", custom_domain = true },
+  { pattern = "www.bangkokflood.com", custom_domain = true },
+]
 
 # Worker เดียวเสิร์ฟทั้งหน้าเว็บ (static assets จาก nuxt generate) และ API — origin เดียวกัน ไม่ต้องตั้ง CORS
 # build หน้าเว็บก่อน deploy: `npm run build:web` ที่ root (หรือ `npm run deploy` ทำให้ทั้งคู่)
@@ -22,7 +30,7 @@ id = "d061225e70414035ae1b97020ee896d8"
 
 [vars]
 # origin อื่นที่อนุญาตให้เรียก API (คั่นด้วย ,) — หน้าเว็บอยู่ origin เดียวกับ API อยู่แล้ว ใส่เผื่อ dev เท่านั้น
-ALLOWED_ORIGIN = "http://localhost:3000,http://localhost:3456"
+ALLOWED_ORIGIN = "https://bangkokflood.com,https://www.bangkokflood.com,http://localhost:3000,http://localhost:3456"
 
 # secrets (ห้ามใส่ในไฟล์นี้):
 #   wrangler secret put INGEST_TOKEN     # สำหรับ PUT /api/ingest จาก scripts/ingest.ts หรือ GitHub Actions

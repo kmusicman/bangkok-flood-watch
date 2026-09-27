@@ -5,11 +5,18 @@ import {
   type FloodBundle, type FloodFeature, type Level, type SourceId,
 } from '../utils/format'
 
-const props = defineProps<{ bundle: FloodBundle | null; visible: Record<SourceId, boolean>; now: number }>()
+const props = defineProps<{
+  bundle: FloodBundle | null
+  visible: Record<SourceId, boolean>
+  now: number
+  /** ค่าเริ่มต้นของตัวกรอง (หน้ารายเขต/จังหวัด) — ผู้ใช้เปลี่ยนได้ */
+  initialProvince?: string
+  initialDistrict?: string
+}>()
 const emit = defineEmits<{ focus: [f: FloodFeature] }>()
 
-const province = ref('')
-const district = ref('')
+const province = ref(props.initialProvince ?? '')
+const district = ref(props.initialDistrict ?? '')
 const q = ref('')
 const limit = ref(40)
 const PAGE = 40
@@ -87,7 +94,7 @@ function countBy(list: FloodFeature[], key: (f: FloodFeature) => string | null) 
         <button class="item" @click="emit('focus', f)">
           <span class="dot" :class="`dot-${f.properties.level}`" :title="LEVEL_LABEL[f.properties.level]" />
           <span class="body">
-            <span class="title">{{ f.properties.name }}</span>
+            <span class="title">{{ f.properties.name }} <span v-if="f.properties.photo" class="cam" title="มีรูปจากผู้แจ้ง">📷</span></span>
             <span v-if="f.properties.detail" class="detail muted small">{{ f.properties.detail }}</span>
             <span class="meta muted small">
               {{ [f.properties.district, f.properties.province].filter(Boolean).join(' · ') }}
@@ -120,6 +127,7 @@ h2 { font-size: 18px; margin: 4px 0 0; }
 .item:active { background: var(--chip); }
 .body { display: grid; gap: 2px; min-width: 0; flex: 1; }
 .title { font-weight: 600; }
+.cam { font-size: 13px; font-weight: 400; } /* บอกว่ารายการนี้มีรูป (เฉพาะเรื่องร้องเรียน Traffy) — เซนเซอร์/สถานีวัดไม่มีรูป */
 .detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .value { font-weight: 700; white-space: nowrap; }
 .lv-critical { color: var(--critical); }

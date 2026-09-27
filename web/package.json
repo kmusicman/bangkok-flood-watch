@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node ../scripts/seed-dev-data.ts",
+    "predev": "node ../scripts/seed-dev-data.ts && node ../scripts/build-static-pages.ts",
     "dev": "nuxt dev",
     "build": "nuxt build",
-    "pregenerate": "node ../scripts/seed-dev-data.ts",
+    "pregenerate": "node ../scripts/seed-dev-data.ts && node ../scripts/build-static-pages.ts",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"

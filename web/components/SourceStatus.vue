@@ -36,6 +36,7 @@ const anySnapshot = computed(() => rows.value.some((r) => r.snapshot))
           <span class="muted small">({{ relTime(r.c.observed_at ?? r.c.fetched_at, now) }})</span>
           <span class="muted small">· {{ fmtInt(r.c.count) }} {{ r.id === 'gistda_flood' ? 'เซลล์ (1 วัน)' : 'จุด' }}</span>
           <span v-if="r.snapshot" class="badge badge-snapshot">ตัวอย่าง</span>
+          <span v-else-if="r.c.error" class="badge badge-stale" :title="r.c.error">ต้นทางล่ม · แสดงชุดล่าสุด</span>
           <span v-else-if="r.stale" class="badge badge-stale">ไม่เป็นปัจจุบัน</span>
           <span v-if="r.c.via" class="badge" title="ได้จากเส้นทางสำรอง">สำรอง</span>
         </template>

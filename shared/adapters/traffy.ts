@@ -69,17 +69,39 @@ export function parseTraffy(pages: TraffyPage[], now = Date.now()): FloodFeature
   return out;
 }
 
-/** ดึงหน้าละ 1000 จนกว่าเรื่องที่เก่าสุดในหน้าจะพ้นหน้าต่าง 24 ชม. หรือครบ maxPages */
+/** ดึง 1 หน้า; ถ้าล้ม (502/timeout ตอน API โหลดหนัก) ลองซ้ำอีกครั้งหลัง 5 วิ ด้วยหน้าเล็กลง */
+async function fetchPage(offset: number, limit: number): Promise<TraffyPage> {
+  try {
+    // จาก Cloudflare edge หน้าละ 1000 ใช้เวลา > 30 วิ ได้ (26 ก.ย. 2569 timeout) → ให้เวลา 75 วิ/หน้า
+    return await getJson<TraffyPage>(`${TRAFFY_API}?limit=${limit}&offset=${offset}`, { timeoutMs: 75_000 });
+  } catch (e) {
+    await new Promise((r) => setTimeout(r, 5_000));
+    const small = Math.max(100, Math.floor(limit / 4));
+    try {
+      return await getJson<TraffyPage>(`${TRAFFY_API}?limit=${small}&offset=${offset}`, { timeoutMs: 45_000 });
+    } catch {
+      throw e; // รายงาน error แรก (ชัดกว่า) — 26 ก.ย. 2569 ค่ำ API ตอบ 502/ค้างทุกขนาดหน้า
+    }
+  }
+}
+
+/** ดึงหน้าละ 1000 จนกว่าเรื่องที่เก่าสุดในหน้าจะพ้นหน้าต่าง 24 ชม. หรือครบ maxPages; ถ้าได้บางหน้าแล้วหน้าถัดไปล้ม ใช้เท่าที่ได้ */
 export async function fetchTraffy(opts: { maxPages?: number; limit?: number } = {}): Promise<FloodFeature[]> {
   const { maxPages = 3, limit = 1000 } = opts;
   const now = Date.now();
   const pages: TraffyPage[] = [];
   for (let i = 0; i < maxPages; i++) {
-    // จาก Cloudflare edge หน้าละ 1000 ใช้เวลา > 30 วิ ได้ (26 ก.ย. 2569 timeout) → ให้เวลา 75 วิ/หน้า
-    const page = await getJson<TraffyPage>(`${TRAFFY_API}?limit=${limit}&offset=${i * limit}`, { timeoutMs: 75_000 });
+    let page: TraffyPage;
+    try {
+      page = await fetchPage(i * limit, limit);
+    } catch (e) {
+      if (pages.length) break; // หน้าแรกได้แล้ว (เรื่องใหม่สุด) — พอใช้ได้
+      throw e;
+    }
     pages.push(page);
+    const got = page.results?.length ?? 0;
     const oldest = page.results?.at(-1)?.timestamp;
-    if (!oldest || page.results.length < limit || Date.parse(toIso(oldest)) < now - TRAFFY_WINDOW_MS) break;
+    if (!oldest || got < limit || Date.parse(toIso(oldest)) < now - TRAFFY_WINDOW_MS) break;
   }
   return parseTraffy(pages, now);
 }

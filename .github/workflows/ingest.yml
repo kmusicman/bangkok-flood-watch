@@ -1,7 +1,7 @@
-# ทางเลือกแทน cron ใน Worker: ดึงข้อมูลบน GitHub Actions แล้ว push เข้า Worker (PUT /api/ingest)
-# ใช้เมื่อ Worker free plan ติดลิมิต CPU 10 ms/ครั้ง (payload ของ สสน. + Traffy รวมกัน ~10 MB)
-# ต้องตั้ง secrets: WORKER_URL, INGEST_TOKEN  (Settings → Secrets and variables → Actions)
-# หมายเหตุ: GitHub schedule ช้าสุด ~5 นาที และอาจล่าช้าช่วงโหลดสูง; repo public รันได้ไม่จำกัดนาที
+# ตัวดึงข้อมูลหลักของ production: GitHub Actions ทุก 10 นาที → ดึง 5 แหล่ง (Node ทำงานหนัก) → PUT bundle เต็มเข้า Worker
+# เหตุผล: cron ใน Cloudflare Worker (free plan) ถูกฆ่าด้วยลิมิต CPU 10 ms ตอน parse JSON หลาย MB ของ สสน./Traffy (ตรวจ 27 ก.ย. 2569)
+# Secrets ที่ต้องตั้ง (Settings → Secrets and variables → Actions): WORKER_URL, INGEST_TOKEN, GISTDA_API_KEY
+# หมายเหตุ: schedule ของ GitHub อาจล่าช้าได้หลายนาทีช่วงโหลดสูง; repo public รันได้ไม่จำกัดนาที (private: 2,000 นาที/เดือน — ทุก 10 นาที × ~1 นาที = ~4,300 นาที/เดือน จึงควรเป็น public หรือปรับเป็น */15)
 name: ingest
 on:
   schedule:
@@ -23,3 +23,4 @@ jobs:
         env:
           WORKER_URL: ${{ secrets.WORKER_URL }}
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}

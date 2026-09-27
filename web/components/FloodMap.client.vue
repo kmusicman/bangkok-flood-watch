@@ -56,12 +56,14 @@ const region = ref<Region>('bkk')
 let map: MLMap | undefined
 let ml: typeof import('maplibre-gl') | undefined
 let popup: import('maplibre-gl').Popup | undefined
+let styleReady = false // true หลัง 'load' / 'style.load' ของสไตล์ปัจจุบัน
 const dark = window.matchMedia('(prefers-color-scheme: dark)')
 
 const toFC = (id: SourceId) => ({ type: 'FeatureCollection' as const, features: props.bundle?.sources[id]?.features ?? [] })
 
 function syncGistdaLayer() {
-  if (!map?.isStyleLoaded()) return
+  // ห้ามใช้ isStyleLoaded() ตรงนี้ — ตอน 'load' แหล่ง GeoJSON ที่เพิ่งเพิ่มยังโหลดอยู่ทำให้คืน false แล้วชั้นดาวเทียมไม่ถูกเพิ่มตอนเปิดหน้า
+  if (!map || !styleReady) return
   if (map.getLayer(GISTDA_LAYER)) map.removeLayer(GISTDA_LAYER)
   if (map.getSource(GISTDA_LAYER)) map.removeSource(GISTDA_LAYER)
   if (!gistdaOn.value) return
@@ -137,8 +139,8 @@ function onClickPoint(e: MapMouseEvent) {
   openPopup((f.geometry as GeoJSON.Point).coordinates as [number, number], f.properties as unknown as FloodProps)
 }
 
-/** สร้าง popup ด้วย DOM (ไม่ใช้ innerHTML กับข้อความจากแหล่งภายนอก) */
-function openPopup(lngLat: [number, number], p: FloodProps) {
+/** สร้าง popup ด้วย DOM (ไม่ใช้ innerHTML กับข้อความจากแหล่งภายนอก); anchor 'bottom' = บังคับให้ popup อยู่เหนือหมุด */
+function openPopup(lngLat: [number, number], p: FloodProps, anchor?: 'bottom') {
   if (!map || !ml) return
   const box = document.createElement('div')
   const add = (tag: string, text: string, cls?: string) => {
@@ -148,24 +150,38 @@ function openPopup(lngLat: [number, number], p: FloodProps) {
     box.appendChild(n)
     return n
   }
+  // รูปไว้บนสุด — ถ้าอยู่ท้ายจะตกไปใต้ขอบ popup ที่จำกัดความสูง ผู้ใช้ไม่เห็นว่ามีรูป
+  // รูป Traffy เป็นไฟล์เต็ม (หลายร้อย KB–MB) บนมือถือใช้เวลาโหลด → แสดง "กำลังโหลดรูป…" และถ้าโหลดไม่ได้ให้ลิงก์เปิดรูปแทน
+  if (p.photo && /^https:\/\//.test(p.photo)) {
+    const wrap = document.createElement('a')
+    wrap.className = 'popup-photo-wrap'
+    wrap.href = p.photo
+    wrap.target = '_blank'
+    wrap.rel = 'noopener'
+    const status = document.createElement('span')
+    status.className = 'popup-photo-status'
+    status.textContent = 'กำลังโหลดรูป…'
+    const img = document.createElement('img')
+    img.className = 'popup-photo'
+    img.alt = 'รูปจากผู้แจ้ง'
+    img.decoding = 'async'
+    img.referrerPolicy = 'no-referrer'
+    img.onload = () => { status.remove() }
+    img.onerror = () => { img.remove(); status.textContent = 'โหลดรูปไม่สำเร็จ — แตะเพื่อเปิดรูปต้นฉบับ ↗' }
+    img.src = p.photo
+    wrap.append(img, status)
+    box.appendChild(wrap)
+  }
   add('div', p.name, 'popup-title')
   const lv = add('div', `● ${LEVEL_LABEL[p.level]}`)
   lv.style.color = LEVEL_COLOR[p.level]
   lv.style.fontWeight = '700'
   const v = fmtValue(p)
   if (v) add('div', v, 'popup-value')
-  if (p.detail) add('div', p.detail)
+  if (p.detail) add('div', p.detail, 'popup-detail')
   add('div', [p.district, p.province].filter(Boolean).join(' · '), 'muted small')
   add('div', `${SOURCE_META[p.source]?.short ?? p.source}${p.agency ? ` · ${p.agency}` : ''}`, 'muted small')
   add('div', `อัปเดต ${fmtTime(p.observed_at, props.now)} (${relTime(p.observed_at, props.now)})`, 'muted small')
-  if (p.photo && /^https:\/\//.test(p.photo)) {
-    const img = document.createElement('img')
-    img.src = p.photo
-    img.loading = 'lazy'
-    img.alt = 'รูปจากผู้แจ้ง'
-    img.className = 'popup-photo'
-    box.appendChild(img)
-  }
   if (p.url && /^https:\/\//.test(p.url)) {
     const a = document.createElement('a')
     a.href = p.url
@@ -176,12 +192,36 @@ function openPopup(lngLat: [number, number], p: FloodProps) {
     box.appendChild(a)
   }
   popup?.remove()
-  popup = new ml.Popup({ maxWidth: '300px' }).setLngLat(lngLat).setDOMContent(box).addTo(map)
+  popup = new ml.Popup({ maxWidth: '300px', ...(anchor ? { anchor } : {}) }).setLngLat(lngLat).setDOMContent(box).addTo(map)
+  requestAnimationFrame(ensurePopupVisible)
+}
+
+/** ถ้า popup ล้นขอบแผนที่ (จอเตี้ย/รูปสูง) ให้เลื่อนแผนที่ตามจนเห็นครบ — ขอบบนสำคัญสุดเพราะรูปอยู่บนสุด */
+function ensurePopupVisible() {
+  const el = popup?.getElement()
+  if (!map || !el) return
+  const pr = el.getBoundingClientRect()
+  const mr = map.getContainer().getBoundingClientRect()
+  const pad = 8
+  let dx = 0
+  let dy = 0
+  if (pr.top < mr.top + pad) dy = pr.top - (mr.top + pad) // ล้นบน → เลื่อนเนื้อหาลง
+  else if (pr.bottom > mr.bottom - pad) dy = pr.bottom - (mr.bottom - pad)
+  if (pr.left < mr.left + pad) dx = pr.left - (mr.left + pad)
+  else if (pr.right > mr.right - pad) dx = pr.right - (mr.right - pad)
+  if (dx || dy) map.panBy([dx, dy], { duration: 250 })
 }
 
 function fitRegion(r: Region) {
   region.value = r
   map?.fitBounds(BOUNDS[r], { padding: 20, duration: 600 })
+}
+
+/** ซูมให้ครอบคลุม bbox [minLng, minLat, maxLng, maxLat] (หน้ารายเขต/จังหวัด) */
+function fitTo(b: [number, number, number, number]) {
+  if (!map) return
+  const pad = 0.01 // จุดเดียว/พื้นที่เล็กมาก → ขยายกรอบเล็กน้อยให้ไม่ซูมจนเกินไป
+  map.fitBounds([[b[0] - pad, b[1] - pad], [b[2] + pad, b[3] + pad]], { padding: 40, maxZoom: 14, duration: 600 })
 }
 
 onMounted(async () => {
@@ -197,17 +237,18 @@ onMounted(async () => {
   })
   map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right')
   map.addControl(new ml.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false }), 'top-right')
-  map.on('load', () => { addLayers(); emit('ready') })
+  map.on('load', () => { styleReady = true; addLayers(); emit('ready') })
   // สลับสไตล์ตามธีมเครื่อง แล้วใส่เลเยอร์กลับ (setStyle ล้างเลเยอร์ทั้งหมด)
   dark.addEventListener('change', (e) => {
+    styleReady = false
     map?.setStyle(e.matches ? STYLE_DARK : STYLE_LIGHT)
-    map?.once('style.load', addLayers)
+    map?.once('style.load', () => { styleReady = true; addLayers() })
   })
 })
 onUnmounted(() => { popup?.remove(); map?.remove() })
 
 watch(() => props.bundle, () => {
-  if (!map?.isStyleLoaded()) return
+  if (!map || !styleReady) return
   for (const id of POINT_SOURCES) (map.getSource(id) as GeoJSONSource | undefined)?.setData(toFC(id))
 })
 watch(() => ({ ...props.visible }), (vis) => {
@@ -223,12 +264,14 @@ watch(gistdaPeriod, syncGistdaLayer)
 watch(() => props.focus, (f) => {
   if (!f || !map) return
   const c = f.geometry.coordinates
-  map.flyTo({ center: c, zoom: Math.max(map.getZoom(), 14), duration: 700 })
-  map.once('moveend', () => openPopup(c, f.properties))
+  // เลื่อนให้หมุดอยู่ต่ำกว่ากึ่งกลางแผนที่ ~1/4 ของความสูง เพื่อให้ popup (ที่เปิดเหนือหมุด) มีที่พอ ไม่ล้นขอบ
+  const offsetY = Math.round(map.getContainer().clientHeight * 0.25)
+  map.flyTo({ center: c, zoom: Math.max(map.getZoom(), 14), duration: 700, offset: [0, offsetY] })
+  map.once('moveend', () => openPopup(c, f.properties, 'bottom'))
   el.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 })
 
-defineExpose({ fitRegion })
+defineExpose({ fitRegion, fitTo })
 </script>
 
 <template>
@@ -254,9 +297,9 @@ defineExpose({ fitRegion })
 </template>
 
 <style scoped>
-.map-wrap { position: relative; width: 100%; max-width: 100%; height: 58vh; min-height: 340px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+.map-wrap { position: relative; width: 100%; max-width: 100%; height: 58vh; min-height: 340px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); scroll-margin-top: 66px; /* scrollIntoView ตอนแตะรายการ ต้องไม่ให้ header ที่ sticky ทับขอบบนของแผนที่/popup */ }
 @media (min-width: 960px) { .map-wrap { height: calc(100vh - 220px); min-height: 480px; } }
-.map { position: absolute; inset: 0; }
+.map { position: absolute; inset: 0; scroll-margin-top: 80px; } /* scrollIntoView เรียกบน .map (ref el) — เผื่อ header sticky 56px + ขอบ */
 .map-top { position: absolute; top: 10px; left: 10px; right: 56px; display: grid; gap: 6px; z-index: 1; pointer-events: none; }
 .map-top > * { pointer-events: auto; }
 .map-region { display: flex; gap: 6px; }

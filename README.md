@@ -42,7 +42,7 @@ npm run dev                 # http://localhost:3000 (หน้าเว็บอ
 
 ## Deploy (ฟรีทั้งหมด) — Worker เดียวเสิร์ฟทั้งเว็บและ API
 
-Production: **https://flood-watch.flood-watch-worker.workers.dev** (deploy ครั้งแรก 26 ก.ย. 2569)
+Production: **https://bangkokflood.com** (โดเมนซื้อผ่าน Cloudflare Registrar 26 ก.ย. 2569, zone id `4b0518ca…`; `www.bangkokflood.com` เสิร์ฟเหมือนกัน, โฮสต์ `*.workers.dev` ปิดแล้ว)
 Cloudflare รวม Pages เข้ากับ Workers แล้ว → หน้าเว็บ static อยู่ใน `[assets]` ของ Worker เดียวกับ API (origin เดียว ไม่ต้องตั้ง CORS)
 
 ```bash
@@ -53,14 +53,37 @@ npm run deploy            # = build:web (nuxt generate, NUXT_PUBLIC_DATA_BASE=/a
 curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://flood-watch.flood-watch-worker.workers.dev/api/ingest/run   # ingest รอบแรกทันที ไม่ต้องรอ cron
 ```
 - อัปเดตครั้งต่อไป: `npm run deploy` คำสั่งเดียว
+- โดเมน: `routes` แบบ `custom_domain = true` ใน `worker/wrangler.toml` — wrangler สร้าง DNS + ใบรับรองให้ตอน deploy (www ใช้เวลาออกใบรับรองไม่กี่นาที)
+- โควตาฟรีที่เป็นเพดานจริง: **Worker 100,000 คำขอ/วัน** (static assets ไม่นับ) — หน้าเว็บโหลด all.json 1 ครั้ง/การเปิด + ทุก 5 นาทีที่เปิดค้าง; ถ้าจะให้รับได้ไม่จำกัดให้เปิด R2 แล้วเพิ่ม binding `DATA_BUCKET` (โค้ดรองรับแล้วใน `storeBundle`) และชี้ `NUXT_PUBLIC_DATA_BASE` ไปที่ custom domain ของ bucket
 - ต้องยืนยันอีเมลของบัญชี Cloudflare ก่อน ไม่งั้น upload Worker จะขึ้น error 10034
 - ผลรัน ingest จาก edge จริง (26 ก.ย. 2569): ดึงได้ครบทั้ง 5 แหล่ง รวมหน้า กทม. ด้วย (Traffy ต้องให้ timeout 75 วิ/หน้า)
 - KV ใช้ key เดียว (`bundle`) → เขียน 1 ครั้ง/รอบ = 144 ครั้ง/วัน (ลิมิตฟรี 1,000) และหน้าเว็บอ่าน 1 ครั้ง/การเปิดหน้า (ลิมิตฟรี 100,000/วัน)
-- ถ้า cron ใน Worker ล้มเพราะ **CPU เกิน 10 ms** (free plan) ให้เปิดใช้ `.github/workflows/ingest.yml` แทน (ตั้ง secrets `WORKER_URL`, `INGEST_TOKEN`) — Worker จะรับข้อมูลทาง `PUT /api/ingest`
+- **ตัวดึงข้อมูลหลัก = GitHub Actions** (`.github/workflows/ingest.yml` ทุก 10 นาที → `PUT /api/ingest` แบบ `x-ingest-mode: full`, Worker เก็บ text ตรงๆ ไม่ parse) — ยืนยันแล้ว 27 ก.ย. 2569 ว่า cron ใน Worker ถูกฆ่าด้วยลิมิต CPU 10 ms ของ free plan (สถานะ `exceededResources` ทุกรอบ) ตอน parse JSON ของ สสน./Traffy; cron ใน Worker เหลือดึงเฉพาะ BMA + GISTDA (payload เล็ก) เป็นตัวสำรอง
+- Secrets ใน GitHub repo: `WORKER_URL=https://bangkokflood.com`, `INGEST_TOKEN` (จาก `.env`), `GISTDA_API_KEY` (จาก `.env`)
+- ดูสถิติ cron/CPU: GraphQL `workersInvocationsAdaptive` (dimensions `datetimeHour, status`) — `exceededResources` = โดนลิมิต
 - ถ้า Worker (IP ต่างประเทศ) ดึงหน้า กทม. ไม่ได้ ใช้เครื่องในไทยรัน `npm run ingest:push -- --only bma_flood_road` ผ่าน cron/launchd ทุก 10 นาที
   (ทดสอบใน `wrangler dev` เมื่อ 26 ก.ย. 2569: สสน. + Traffy ดึงผ่าน Worker ได้, หน้า กทม. ตอบ "internal error" จาก fetch ของ workerd — ต้องดูอีกทีหลัง deploy จริง)
 - ทดสอบในเครื่อง: `cd worker && npx wrangler dev --test-scheduled` แล้ว `curl "http://localhost:8787/__scheduled?cron=*/10+*+*+*+*"` เพื่อยิง cron (ผลอยู่ใน log ของ wrangler, KV local อยู่ที่ `worker/.wrangler/state`)
 - ก่อน KV มีข้อมูล Worker จะตอบ `shared/snapshots/all.json` พร้อม `snapshot: true` (หน้าเว็บขึ้นป้าย "ข้อมูลตัวอย่าง")
+
+### สถิติผู้เข้าชม
+- **Cloudflare Web Analytics** (ฟรี, ไม่ใช้คุกกี้): เปิดไว้แล้วสำหรับ `bangkokflood.com` แบบ *Automatic setup* (Cloudflare ฉีด beacon ให้เองที่ edge ไม่ต้องแก้โค้ด) — ดูที่ dashboard → Analytics → Web analytics; ส่วนจำนวนคำขอ/error ของ API ดูที่ Workers & Pages → flood-watch → Metrics
+- **Google Analytics 4**: ติดแล้ว (`NUXT_PUBLIC_GA_ID` ใน `web/.env`, property "Bangkok Flood Watch") — `components/CookieConsent.vue` โหลด gtag **หลังผู้ใช้กดยอมรับ** เท่านั้น (PDPA), จำคำตอบใน localStorage key `cookie-consent`; ก่อนยอมรับไม่มีคำขอไป Google เลย
+- ถ้าโฮสต์ที่อื่นที่ไม่ผ่าน Cloudflare: ใส่ `NUXT_PUBLIC_CF_BEACON=<token>` (จาก Manage site → JS snippet) แทน automatic setup
+
+### หน้ารายพื้นที่ (SEO)
+- `/bangkok/` + `/bangkok/<slug>/` 50 เขต และ `/province/` + `/province/<slug>/` 76 จังหวัด, `/en/` ภาษาอังกฤษ — รายชื่อ/slug อยู่ใน `web/data/areas.ts` (ค่า `th` ต้องตรงกับ `district`/`province` ในข้อมูล)
+- `scripts/build-static-pages.ts` (รันอัตโนมัติก่อน dev/generate) สร้าง `web/data/areas-static.json` (ชื่อเซนเซอร์/สถานีต่อพื้นที่ → ข้อความคงที่ใน HTML) และ `web/public/sitemap.xml` (131 URL + lastmod)
+- ทุกหน้าใช้ `components/FloodDashboard.vue` เดียวกัน ส่ง `province`/`district` เพื่อกรองรายการและซูมแผนที่
+
+### ปุ่มแชร์
+`components/ShareButton.vue` ใน header: มือถือใช้ Web Share API (แชร์เข้า LINE/Facebook/Messenger ตรงๆ) เดสก์ท็อปเป็นเมนู LINE / Facebook / X / คัดลอกลิงก์ ของ**หน้าปัจจุบัน** (หน้ารายเขตแชร์ลิงก์เขตนั้น) และส่ง event `share` ไป GA ถ้าผู้ใช้ยอมรับคุกกี้
+
+### SEO / ให้ Google เจอ
+- ใน HTML ที่ prerender แล้วมี `<h1>` + ย่อหน้าอธิบาย (`pages/index.vue` section.intro), title/description ภาษาไทย, canonical, Open Graph + Twitter card (`public/og.png` เรนเดอร์จาก `scratch/og.html` ด้วยเบราว์เซอร์ — PIL วาดสระ/วรรณยุกต์ไทยไม่ได้), JSON-LD `WebSite`, `public/robots.txt` (block `/api/`), `public/sitemap.xml`
+- ถ้าแก้ `og.png` ให้เปลี่ยน `?v=` ใน `nuxt.config.ts` และ purge URL เดิมใน Cloudflare (Caching → Configuration → Custom Purge) เพราะ edge cache รูปไว้
+- `www` → apex เป็น 301 ด้วย Redirect Rule ของ zone (template "Redirect from WWW to root")
+- **Google Search Console:** เพิ่ม property แบบ *Domain* `bangkokflood.com` → ยืนยันด้วย TXT record ใน DNS ของ Cloudflare → ส่ง sitemap `https://bangkokflood.com/sitemap.xml` → ขอ index หน้า `/` และ `/links/` ด้วย URL Inspection
 
 ### GISTDA keys
 ที่ `api-gateway.gistda.or.th` → API Keys → สร้าง 2 key: (1) ข้อจำกัด "ไม่มี" → `wrangler secret put GISTDA_API_KEY` (2) ข้อจำกัด "อ้างอิง HTTP" ใส่โดเมนเว็บ (`https://flood-watch.flood-watch-worker.workers.dev` + `http://localhost:3000` สำหรับ dev) → `web/.env` `NUXT_PUBLIC_GISTDA_KEY` (ถูก inline ตอน build) — ปุ่ม "แสดงผล API Key" โชว์ค่าที่ถูกบังไว้ ต้องกด "คัดลอก" เท่านั้นถึงได้ key จริง; ถ้าย้ายโดเมนต้องกลับไปแก้รายการ referrer

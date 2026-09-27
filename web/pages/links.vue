@@ -45,7 +45,11 @@ const GROUPS: { title: string; icon: string; links: Link[] }[] = [
   },
 ]
 
-useHead({ title: 'ลิงก์และสายด่วน — Bangkok Flood Watch' })
+useHead({
+  title: 'สายด่วนน้ำท่วม 1784 1669 1555 และลิงก์เช็กน้ำท่วม เรดาร์ฝน CCTV — Bangkok Flood Watch',
+  meta: [{ name: 'description', content: 'รวมเบอร์สายด่วนช่วงน้ำท่วม (ปภ. 1784, เจ็บป่วยฉุกเฉิน 1669, กทม. 1555, ทางหลวง 1586, ทางหลวงชนบท 1146, ไฟฟ้า 1130/1129) และลิงก์เครื่องมือทางการ: ระดับน้ำ-เขื่อน เรดาร์ฝน CCTV จราจร พื้นที่น้ำท่วมจากดาวเทียม' }],
+  link: [{ rel: 'canonical', href: 'https://bangkokflood.com/links/' }],
+})
 </script>
 
 <template>
