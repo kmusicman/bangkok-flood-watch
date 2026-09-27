@@ -60,6 +60,8 @@ curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://flood-watch.flood-
 - KV ใช้ key เดียว (`bundle`) → เขียน 1 ครั้ง/รอบ = 144 ครั้ง/วัน (ลิมิตฟรี 1,000) และหน้าเว็บอ่าน 1 ครั้ง/การเปิดหน้า (ลิมิตฟรี 100,000/วัน)
 - **ตัวดึงข้อมูลหลัก = GitHub Actions** (`.github/workflows/ingest.yml` ทุก 10 นาที → `PUT /api/ingest` แบบ `x-ingest-mode: full`, Worker เก็บ text ตรงๆ ไม่ parse) — ยืนยันแล้ว 27 ก.ย. 2569 ว่า cron ใน Worker ถูกฆ่าด้วยลิมิต CPU 10 ms ของ free plan (สถานะ `exceededResources` ทุกรอบ) ตอน parse JSON ของ สสน./Traffy; cron ใน Worker เหลือดึงเฉพาะ BMA + GISTDA (payload เล็ก) เป็นตัวสำรอง
 - Secrets ใน GitHub repo: `WORKER_URL=https://bangkokflood.com`, `INGEST_TOKEN` (จาก `.env`), `GISTDA_API_KEY` (จาก `.env`)
+- **ตัวจับเวลา = cron ของ Cloudflare** (ตรงเวลา) ซึ่งเรียก GitHub `workflow_dispatch` ทุก 10 นาที (`dispatchGithub` ใน Worker, secret `GITHUB_DISPATCH_TOKEN` = fine-grained PAT สิทธิ์ Actions read/write เฉพาะ repo นี้; `GITHUB_REPO` ใน wrangler.toml) — `on: schedule` ของ GitHub เก็บไว้เป็นสำรองแต่ไม่ตรงเวลา/ไม่เริ่มสำหรับ repo ใหม่ (27 ก.ย. 2569 รอ 1 ชม. ไม่ยิงเลย); ทดสอบด้วย `POST /api/ingest/dispatch` (Bearer INGEST_TOKEN) → `github_status: 204`
+- ถ้า PAT หมดอายุ: cron จะ log `github dispatch → 401` และข้อมูล สสน./Traffy จะค้าง → สร้าง PAT ใหม่แล้ว `wrangler secret put GITHUB_DISPATCH_TOKEN`
 - ดูสถิติ cron/CPU: GraphQL `workersInvocationsAdaptive` (dimensions `datetimeHour, status`) — `exceededResources` = โดนลิมิต
 - ถ้า Worker (IP ต่างประเทศ) ดึงหน้า กทม. ไม่ได้ ใช้เครื่องในไทยรัน `npm run ingest:push -- --only bma_flood_road` ผ่าน cron/launchd ทุก 10 นาที
   (ทดสอบใน `wrangler dev` เมื่อ 26 ก.ย. 2569: สสน. + Traffy ดึงผ่าน Worker ได้, หน้า กทม. ตอบ "internal error" จาก fetch ของ workerd — ต้องดูอีกทีหลัง deploy จริง)
