@@ -31,10 +31,13 @@ id = "d061225e70414035ae1b97020ee896d8"
 [vars]
 # origin อื่นที่อนุญาตให้เรียก API (คั่นด้วย ,) — หน้าเว็บอยู่ origin เดียวกับ API อยู่แล้ว ใส่เผื่อ dev เท่านั้น
 ALLOWED_ORIGIN = "https://bangkokflood.com,https://www.bangkokflood.com,http://localhost:3000,http://localhost:3456"
+# repo ที่มี .github/workflows/ingest.yml — cron ของ Worker จะสั่ง workflow_dispatch ทุก 10 นาที (ต้องมี secret GITHUB_DISPATCH_TOKEN)
+GITHUB_REPO = "kmusicman/bangkok-flood-watch"
 
 # secrets (ห้ามใส่ในไฟล์นี้):
 #   wrangler secret put INGEST_TOKEN     # สำหรับ PUT /api/ingest จาก scripts/ingest.ts หรือ GitHub Actions
 #   wrangler secret put GISTDA_API_KEY   # key GISTDA แบบไม่จำกัด สำหรับ cron
+#   wrangler secret put GITHUB_DISPATCH_TOKEN  # fine-grained PAT: repo นี้เท่านั้น, permission Actions = Read and write
 
 [observability]
 enabled = true

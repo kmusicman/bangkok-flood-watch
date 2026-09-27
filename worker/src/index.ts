@@ -26,6 +26,28 @@ export interface Env {
   ALLOWED_ORIGIN?: string;
   INGEST_TOKEN?: string;
   GISTDA_API_KEY?: string;
+  /** fine-grained PAT (Actions: read/write ของ repo นี้) — ให้ cron ของ Cloudflare สะกิด GitHub Actions ทุก 10 นาที */
+  GITHUB_DISPATCH_TOKEN?: string;
+  /** owner/repo ของ workflow ingest.yml */
+  GITHUB_REPO?: string;
+}
+
+/** สั่ง GitHub รัน workflow ingest.yml (workflow_dispatch) — schedule ของ GitHub เองไม่ตรงเวลา/ไม่เริ่มสำหรับ repo ใหม่ */
+async function dispatchGithub(env: Env): Promise<number | null> {
+  if (!env.GITHUB_DISPATCH_TOKEN || !env.GITHUB_REPO) return null;
+  const r = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/ingest.yml/dispatches`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`,
+      accept: 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+      'content-type': 'application/json',
+      'user-agent': 'flood-watch-worker (+https://bangkokflood.com)',
+    },
+    body: JSON.stringify({ ref: 'main' }),
+  });
+  console.log(`github dispatch → ${r.status}${r.ok ? '' : ' ' + (await r.text()).slice(0, 200)}`);
+  return r.status; // 204 = รับคำสั่งแล้ว
 }
 
 /** เขียน bundle ลง KV และ (ถ้ามี) R2 — R2 = ไฟล์สาธารณะ data.<domain>/all.json ที่ CDN cache ให้ ไม่กินโควตา Worker */
@@ -88,7 +110,8 @@ async function runIngest(env: Env, only?: SourceId[]) {
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runIngest(env, CRON_SOURCES));
+    // 1) สะกิด GitHub Actions ให้ดึงชุดใหญ่ (สสน. + Traffy) 2) ดึงชุดเล็กเองเป็นสำรอง
+    ctx.waitUntil(Promise.all([dispatchGithub(env), runIngest(env, CRON_SOURCES)]));
   },
 
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -122,6 +145,14 @@ export default {
       const merged = mergeBundle(previous, body.sources ?? {});
       await storeBundle(env, merged);
       return json({ ok: true, sources: Object.keys(body.sources ?? {}) }, 200, cors);
+    }
+
+    // ทดสอบการสะกิด GitHub ด้วยมือ (ต้องมี token)
+    if (url.pathname === '/api/ingest/dispatch' && req.method === 'POST') {
+      const auth = req.headers.get('authorization') ?? '';
+      if (!env.INGEST_TOKEN || auth !== `Bearer ${env.INGEST_TOKEN}`) return json({ error: 'unauthorized' }, 401, cors);
+      const status = await dispatchGithub(env);
+      return json({ github_status: status, configured: !!(env.GITHUB_DISPATCH_TOKEN && env.GITHUB_REPO) }, 200, cors);
     }
 
     // เรียก ingest ด้วยมือ (ต้องมี token) — ไว้ทดสอบหลัง deploy
