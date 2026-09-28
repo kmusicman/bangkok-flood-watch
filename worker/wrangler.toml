@@ -20,7 +20,7 @@ binding = "ASSETS"
 not_found_handling = "404-page"
 run_worker_first = ["/api/*", "/health"]
 
-# Cron ทุก 10 นาที (KV free tier เขียนได้ 1,000 ครั้ง/วัน — เราเขียน 1 ครั้ง/รอบ = 144/วัน)
+# Cron ทุก 10 นาที = สะกิด GitHub Actions เท่านั้น (Worker ไม่ดึง/ไม่ parse ข้อมูลเอง — ลิมิต CPU 10 ms ของ free plan)
 [triggers]
 crons = ["*/10 * * * *"]
 
@@ -36,7 +36,7 @@ GITHUB_REPO = "kmusicman/bangkok-flood-watch"
 
 # secrets (ห้ามใส่ในไฟล์นี้):
 #   wrangler secret put INGEST_TOKEN     # สำหรับ PUT /api/ingest จาก scripts/ingest.ts หรือ GitHub Actions
-#   wrangler secret put GISTDA_API_KEY   # key GISTDA แบบไม่จำกัด สำหรับ cron
+#   (GISTDA_API_KEY ไม่ต้องใส่ใน Worker แล้ว — cron ไม่ดึงข้อมูลเอง; key อยู่ใน GitHub secrets)
 #   wrangler secret put GITHUB_DISPATCH_TOKEN  # fine-grained PAT: repo นี้เท่านั้น, permission Actions = Read and write
 
 [observability]

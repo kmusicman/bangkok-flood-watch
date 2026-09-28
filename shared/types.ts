@@ -48,7 +48,24 @@ export interface FloodCollection {
 /** ไฟล์เดียวที่หน้าเว็บโหลด: ทุกแหล่งรวมกัน (KV key เดียว → อ่าน 1 ครั้งต่อการเปิดหน้า) */
 export interface FloodBundle {
   generated_at: string;
+  /**
+   * สถานะย่อของแต่ละแหล่ง (ไม่มี features) — scripts/ingest.ts ฝังไว้ **ก่อน** `sources` เสมอ
+   * เพื่อให้ Worker ตอบ /api/data/index.json ได้โดยตัดเอาแค่หัวไฟล์ ไม่ต้อง JSON.parse bundle 3 MB (ลิมิต CPU free plan)
+   */
+  index?: Partial<Record<SourceId, SourceStatus>>;
   sources: Partial<Record<SourceId, FloodCollection>>;
+}
+
+/** FloodCollection ตัดส่วน features ออก — ใช้ใน index.json */
+export type SourceStatus = Pick<FloodCollection, 'source' | 'fetched_at' | 'observed_at' | 'via' | 'stale' | 'snapshot' | 'error' | 'count'>;
+
+/** จัดเรียง key ให้ Worker อ่านหัวไฟล์ได้: generated_at → index → sources */
+export function withIndex(bundle: FloodBundle): FloodBundle {
+  const index: FloodBundle['index'] = {};
+  for (const c of Object.values(bundle.sources)) {
+    index[c.source] = { source: c.source, fetched_at: c.fetched_at, observed_at: c.observed_at, via: c.via, stale: c.stale, snapshot: c.snapshot, error: c.error, count: c.count };
+  }
+  return { generated_at: bundle.generated_at, index, sources: bundle.sources };
 }
 
 export interface SourceMeta {

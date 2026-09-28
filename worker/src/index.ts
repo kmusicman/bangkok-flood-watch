@@ -1,23 +1,16 @@
 // Cloudflare Worker — Phase 0 (CLAUDE.md ข้อ 4.1)
-//   cron ทุก 10 นาที → ดึงทุกแหล่ง → FloodBundle → KV key เดียว ("bundle")
-//   GET /api/data/all.json        ทุกแหล่งในไฟล์เดียว (หน้าเว็บใช้อันนี้ — อ่าน KV 1 ครั้ง/การเปิดหน้า)
-//   GET /api/data/{source}.json   เฉพาะแหล่ง
-//   GET /api/data/index.json      สถานะแต่ละแหล่ง (เวลาอัปเดต, stale, error) ไม่มี features
-//   PUT /api/ingest               (Bearer INGEST_TOKEN) รับ {sources:{...}} จากสคริปต์ภายนอก แล้ว merge ลง KV
+//   ตัวดึงข้อมูล = GitHub Actions (.github/workflows/ingest.yml) → PUT /api/ingest แบบ full → KV key เดียว ("bundle")
+//   cron ทุก 10 นาที → แค่สะกิด GitHub (workflow_dispatch) — ไม่ดึง/ไม่ parse อะไรเองเลย
+//   GET /api/data/all.json        ทุกแหล่งในไฟล์เดียว (หน้าเว็บใช้อันนี้) — ส่ง text จาก KV ตรงๆ
+//   GET /api/data/index.json      สถานะแต่ละแหล่ง (เวลาอัปเดต, error, count) — อ่านจากหัวไฟล์ที่สคริปต์ฝังมา
+//   PUT /api/ingest               (Bearer INGEST_TOKEN, x-ingest-mode: full) เก็บ bundle ทั้งก้อนเป็น text
 //   GET /health
-// ผู้ใช้ไม่ยิงตรงไปแหล่งข้อมูลทางการ; แหล่งไหนล่มคงชุดเดิม + stale
-
-import { ingestAll, mergeBundle } from '../../shared/adapters/index.ts';
-import type { FloodBundle, FloodCollection, SourceId } from '../../shared/types.ts';
-import { SOURCE_IDS, STALE_MS } from '../../shared/util.ts';
-
-// ไม่ฝัง snapshot 1.2 MB ในโค้ดแล้ว — การประเมิน object literal ขนาดนั้นตอน cold start กิน CPU ไปหลาย ms
-// (free plan มี 10 ms/ครั้ง) และ KV มีข้อมูลจริงแล้ว; ถ้า KV ว่างจริงๆ ตอบ bundle ว่างพร้อม flag ให้หน้าเว็บบอกผู้ใช้
-const EMPTY_BUNDLE: FloodBundle = { generated_at: new Date(0).toISOString(), sources: {} };
-
-// แหล่งที่ payload เล็กพอให้ cron ใน Worker ดึงเองภายในลิมิต CPU (สำรองกรณี GitHub Actions ล่าช้า)
-// สสน. (1.4 + 4.6 MB) และ Traffy (2 MB/หน้า) parse ไม่ทันใน 10 ms → ให้ GitHub Actions ส่งเข้ามาทาง PUT /api/ingest แทน
-const CRON_SOURCES: SourceId[] = ['bma_flood_road', 'gistda_flood'];
+//
+// กฎเหล็กของ Worker นี้: **ห้าม JSON.parse bundle** ในทุกเส้นทาง
+//   free plan จำกัด CPU ~10 ms/ครั้ง; bundle ≈ 3 MB (Traffy 1.3 MB + สสน. 0.9 MB) parse กิน 50–90 ms
+//   28 ก.ย. 2569 ทุก GET /api/data/* ตอบ 503 (error 1102 exceededResources) เพราะ readBundle parse ทุกครั้งที่ edge cache หมด
+//   และ cron ที่พยายาม merge ชุดเดิม (parse 3 MB) ถูกฆ่าที่ 10 ms ทุกรอบ → ตัดทิ้งทั้งหมด ให้ Node ฝั่ง GitHub ทำงานหนักแทน
+// ผู้ใช้ไม่ยิงตรงไปแหล่งข้อมูลทางการ; แหล่งไหนล่ม สคริปต์คงชุดเดิม + stale/error ไว้ใน bundle เอง
 
 export interface Env {
   FLOOD_DATA: KVNamespace;
@@ -25,12 +18,19 @@ export interface Env {
   DATA_BUCKET?: R2Bucket;
   ALLOWED_ORIGIN?: string;
   INGEST_TOKEN?: string;
-  GISTDA_API_KEY?: string;
   /** fine-grained PAT (Actions: read/write ของ repo นี้) — ให้ cron ของ Cloudflare สะกิด GitHub Actions ทุก 10 นาที */
   GITHUB_DISPATCH_TOKEN?: string;
   /** owner/repo ของ workflow ingest.yml */
   GITHUB_REPO?: string;
 }
+
+const KV_KEY = 'bundle';
+const BROWSER_CACHE_S = 60; // max-age ฝั่งเบราว์เซอร์
+const EDGE_CACHE_S = 120; // s-maxage / Cache API (ใช้ได้เมื่อผูกโดเมนของเราเอง)
+const BUNDLE_HEAD = '{"generated_at":"';
+const SOURCES_KEY = ',"sources":';
+// KV ว่าง (deploy ใหม่ / ยังไม่เคย ingest) → ตอบ bundle ว่างพร้อม flag ให้หน้าเว็บบอกผู้ใช้
+const EMPTY_BUNDLE_TEXT = `${BUNDLE_HEAD}${new Date(0).toISOString()}","index":{}${SOURCES_KEY}{}}`;
 
 /** สั่ง GitHub รัน workflow ingest.yml (workflow_dispatch) — schedule ของ GitHub เองไม่ตรงเวลา/ไม่เริ่มสำหรับ repo ใหม่ */
 async function dispatchGithub(env: Env): Promise<number | null> {
@@ -50,9 +50,8 @@ async function dispatchGithub(env: Env): Promise<number | null> {
   return r.status; // 204 = รับคำสั่งแล้ว
 }
 
-/** เขียน bundle ลง KV และ (ถ้ามี) R2 — R2 = ไฟล์สาธารณะ data.<domain>/all.json ที่ CDN cache ให้ ไม่กินโควตา Worker */
-async function storeBundle(env: Env, bundle: FloodBundle | string) {
-  const json = typeof bundle === 'string' ? bundle : JSON.stringify(bundle);
+/** เขียน bundle (text) ลง KV และ (ถ้ามี) R2 — R2 = ไฟล์สาธารณะ data.<domain>/all.json ที่ CDN cache ให้ ไม่กินโควตา Worker */
+async function storeBundle(env: Env, json: string) {
   await env.FLOOD_DATA.put(KV_KEY, json);
   if (env.DATA_BUCKET) {
     await env.DATA_BUCKET.put('all.json', json, {
@@ -61,9 +60,18 @@ async function storeBundle(env: Env, bundle: FloodBundle | string) {
   }
 }
 
-const KV_KEY = 'bundle';
-const BROWSER_CACHE_S = 60; // max-age ฝั่งเบราว์เซอร์
-const EDGE_CACHE_S = 120; // s-maxage / Cache API (ใช้ได้เมื่อผูกโดเมนของเราเอง)
+/** ตรวจรูปแบบ bundle ที่รับมาแค่จากหัวไฟล์ — ต้องเป็น {"generated_at":"…","index":{…},"sources":{…}} ตามที่ scripts/ingest.ts เขียน */
+function looksLikeBundle(text: string): boolean {
+  const i = text.indexOf(SOURCES_KEY);
+  return text.startsWith(BUNDLE_HEAD) && i > 0 && i < 100_000 && text.slice(0, i).includes('"index":{');
+}
+
+/** index.json = ส่วนหัวของ bundle (ก่อน "sources") — ไม่กี่ KB parse ได้ใน < 1 ms */
+function bundleIndex(text: string): string {
+  const i = text.indexOf(SOURCES_KEY);
+  const head = JSON.parse(text.slice(0, i) + '}') as { generated_at: string; index?: unknown };
+  return JSON.stringify({ generated_at: head.generated_at, sources: head.index ?? {} });
+}
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(typeof body === 'string' ? body : JSON.stringify(body), {
@@ -84,34 +92,15 @@ function corsHeaders(req: Request, env: Env): Record<string, string> {
   };
 }
 
-/** คำนวณ stale ตอนอ่าน — ไม่ต้องเขียน KV เพิ่มเมื่อดึงไม่สำเร็จ */
-function markStale(bundle: FloodBundle, now = Date.now()): FloodBundle {
-  const sources: FloodBundle['sources'] = {};
-  for (const [id, c] of Object.entries(bundle.sources) as [SourceId, FloodCollection][]) {
-    sources[id] = { ...c, stale: c.stale || now - Date.parse(c.fetched_at) > STALE_MS };
-  }
-  return { ...bundle, sources };
-}
-
-async function readBundle(env: Env): Promise<{ bundle: FloodBundle; fromSnapshot: boolean }> {
-  const stored = await env.FLOOD_DATA.get(KV_KEY, { type: 'json', cacheTtl: 60 }) as FloodBundle | null;
-  if (stored) return { bundle: markStale(stored), fromSnapshot: false };
-  // KV ยังว่าง (deploy ใหม่ / ยังไม่เคย ingest) → bundle ว่าง; หน้าเว็บจะขึ้น "ไม่มีข้อมูล" จนกว่าจะมีการ PUT/ cron สำเร็จ
-  return { bundle: EMPTY_BUNDLE, fromSnapshot: true };
-}
-
-async function runIngest(env: Env, only?: SourceId[]) {
-  const previous = (await env.FLOOD_DATA.get(KV_KEY, { type: 'json' })) as FloodBundle | null;
-  const outcome = await ingestAll({ previous, only, keys: { gistda: env.GISTDA_API_KEY }, log: (m) => console.log(m) });
-  if (outcome.ok.length) await storeBundle(env, outcome.bundle);
-  else console.error('ingest: every source failed; KV untouched');
-  return outcome;
+function authorized(req: Request, env: Env): boolean {
+  const auth = req.headers.get('authorization') ?? '';
+  return !!env.INGEST_TOKEN && auth === `Bearer ${env.INGEST_TOKEN}`;
 }
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    // 1) สะกิด GitHub Actions ให้ดึงชุดใหญ่ (สสน. + Traffy) 2) ดึงชุดเล็กเองเป็นสำรอง
-    ctx.waitUntil(Promise.all([dispatchGithub(env), runIngest(env, CRON_SOURCES)]));
+    // งานเดียว: สะกิด GitHub Actions ให้ดึงข้อมูลแล้ว PUT กลับมา (CPU ≈ 0 อยู่ในลิมิต free plan แน่นอน)
+    ctx.waitUntil(dispatchGithub(env));
   },
 
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -121,53 +110,35 @@ export default {
 
     if (url.pathname === '/health') return json({ ok: true, time: new Date().toISOString() }, 200, cors);
 
-    // รับข้อมูลจากสคริปต์ภายนอก (GitHub Actions / เครื่องในไทยที่อ่านหน้า กทม. ได้)
-    // ทางหลักของ production: cron ใน Worker ถูกฆ่าด้วยลิมิต CPU 10 ms (free plan) ตอน parse JSON หลาย MB
-    // → ให้ Node ฝั่ง GitHub Actions ทำงานหนักแล้วส่ง bundle เต็มมา Worker เก็บเป็น text ตรงๆ ไม่ parse (CPU ≈ 0)
+    // รับ bundle เต็มจาก GitHub Actions (scripts/ingest.ts --push) — เก็บ text ตรงๆ ไม่ parse
     if (url.pathname === '/api/ingest' && req.method === 'PUT') {
-      const auth = req.headers.get('authorization') ?? '';
-      if (!env.INGEST_TOKEN || auth !== `Bearer ${env.INGEST_TOKEN}`) return json({ error: 'unauthorized' }, 401, cors);
+      if (!authorized(req, env)) return json({ error: 'unauthorized' }, 401, cors);
+      if (req.headers.get('x-ingest-mode') !== 'full') return json({ error: 'only x-ingest-mode: full is supported (Worker never parses bundles)' }, 400, cors);
       const text = await req.text();
       if (text.length > 25_000_000) return json({ error: 'too large' }, 413, cors);
-      if (req.headers.get('x-ingest-mode') === 'full') {
-        // bundle เต็ม (สคริปต์ merge ชุดเดิมมาแล้ว) — ตรวจแค่หัวไฟล์ ไม่ JSON.parse
-        if (!text.startsWith('{"generated_at":"')) return json({ error: 'not a bundle' }, 400, cors);
-        await storeBundle(env, text);
-        return json({ ok: true, mode: 'full', bytes: text.length }, 200, cors);
-      }
-      let body: { sources?: Partial<Record<SourceId, FloodCollection>> };
-      try {
-        body = JSON.parse(text);
-      } catch {
-        return json({ error: 'invalid json' }, 400, cors);
-      }
-      const previous = (await env.FLOOD_DATA.get(KV_KEY, { type: 'json' })) as FloodBundle | null;
-      const merged = mergeBundle(previous, body.sources ?? {});
-      await storeBundle(env, merged);
-      return json({ ok: true, sources: Object.keys(body.sources ?? {}) }, 200, cors);
+      if (!looksLikeBundle(text)) return json({ error: 'not a bundle (need generated_at + index + sources in this order)' }, 400, cors);
+      await storeBundle(env, text);
+      // ล้าง edge cache ให้คนเห็นชุดใหม่ทันที ไม่ต้องรอ s-maxage
+      const cache = caches.default;
+      ctx.waitUntil(Promise.all(['all', 'index'].map((w) => cache.delete(new Request(`${url.origin}/api/data/${w}.json`, { method: 'GET' })))));
+      return json({ ok: true, mode: 'full', bytes: text.length }, 200, cors);
     }
 
     // ทดสอบการสะกิด GitHub ด้วยมือ (ต้องมี token)
     if (url.pathname === '/api/ingest/dispatch' && req.method === 'POST') {
-      const auth = req.headers.get('authorization') ?? '';
-      if (!env.INGEST_TOKEN || auth !== `Bearer ${env.INGEST_TOKEN}`) return json({ error: 'unauthorized' }, 401, cors);
+      if (!authorized(req, env)) return json({ error: 'unauthorized' }, 401, cors);
       const status = await dispatchGithub(env);
       return json({ github_status: status, configured: !!(env.GITHUB_DISPATCH_TOKEN && env.GITHUB_REPO) }, 200, cors);
     }
 
-    // เรียก ingest ด้วยมือ (ต้องมี token) — ไว้ทดสอบหลัง deploy
-    if (url.pathname === '/api/ingest/run' && req.method === 'POST') {
-      const auth = req.headers.get('authorization') ?? '';
-      if (!env.INGEST_TOKEN || auth !== `Bearer ${env.INGEST_TOKEN}`) return json({ error: 'unauthorized' }, 401, cors);
-      const outcome = await runIngest(env);
-      return json({ ok: outcome.ok, failed: outcome.failed }, 200, cors);
+    const m = url.pathname.match(/^\/api\/data\/(all|index)\.json$/);
+    if (!m || req.method !== 'GET') {
+      if (url.pathname.startsWith('/api/data/')) return json({ error: 'only all.json and index.json are served' }, 404, cors);
+      return json({ error: 'not found' }, 404, cors);
     }
-
-    const m = url.pathname.match(/^\/api\/data\/([a-z_]+)\.json$/);
-    if (!m || req.method !== 'GET') return json({ error: 'not found' }, 404, cors);
     const what = m[1];
 
-    // Cache API: ลดการอ่าน KV เมื่อคนเข้าพร้อมกันมาก (บน workers.dev จะข้ามไปเฉยๆ)
+    // Cache API: ลดการอ่าน KV เมื่อคนเข้าพร้อมกันมาก
     const cache = caches.default;
     const cacheKey = new Request(url.toString(), { method: 'GET' });
     const hit = await cache.match(cacheKey);
@@ -177,21 +148,12 @@ export default {
       return r;
     }
 
-    const { bundle, fromSnapshot } = await readBundle(env);
-    let payload: unknown;
-    if (what === 'all') payload = bundle;
-    else if (what === 'index') {
-      payload = {
-        generated_at: bundle.generated_at,
-        snapshot: fromSnapshot,
-        sources: Object.fromEntries(
-          Object.values(bundle.sources).map((c) => [c.source, { fetched_at: c.fetched_at, observed_at: c.observed_at, stale: c.stale, snapshot: c.snapshot, error: c.error, count: c.count, via: c.via }]),
-        ),
-      };
-    } else if ((SOURCE_IDS as string[]).includes(what)) payload = bundle.sources[what as SourceId] ?? null;
-    else return json({ error: 'unknown source', sources: SOURCE_IDS }, 404, cors);
+    const stored = await env.FLOOD_DATA.get(KV_KEY, { type: 'text', cacheTtl: 60 });
+    const text = stored ?? EMPTY_BUNDLE_TEXT;
+    const fromSnapshot = !stored;
+    const body = what === 'all' ? text : bundleIndex(text);
 
-    const res = json(payload, 200, {
+    const res = json(body, 200, {
       ...cors,
       'cache-control': `public, max-age=${BROWSER_CACHE_S}, s-maxage=${EDGE_CACHE_S}`,
       'x-data-snapshot': String(fromSnapshot),

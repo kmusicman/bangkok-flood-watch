@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ingestAll } from '../shared/adapters/index.ts';
-import type { FloodBundle, SourceId } from '../shared/types.ts';
+import { withIndex, type FloodBundle, type SourceId } from '../shared/types.ts';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const args = process.argv.slice(2);
@@ -45,7 +45,8 @@ async function loadPrevious(): Promise<FloodBundle | null> {
 
 const previous = await loadPrevious();
 const { bundle, ok, failed } = await ingestAll({ previous, only, keys, log: (m) => console.log(m) });
-const json = JSON.stringify(bundle);
+// ฝัง index ไว้หน้า sources — Worker ตอบ index.json จากหัวไฟล์นี้โดยไม่ parse ทั้งก้อน (ดู withIndex)
+const json = JSON.stringify(withIndex(bundle));
 console.log(`bundle ${(json.length / 1024).toFixed(0)} KB, ok=${ok.length} failed=${failed.length}`);
 
 if (outDir) {

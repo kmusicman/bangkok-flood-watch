@@ -11,7 +11,7 @@ shared/            โค้ดกลางที่ Worker, สคริปต�
   adapters/        adapter แยกต่อแหล่ง: thaiwater.ts, bma.ts, traffy.ts (+ index.ts = ingestAll)
   data/bma_districts.json   รหัสเซนเซอร์ กทม. → เขต (สร้างจาก thaiwater flood_road)
   snapshots/       all.json = ข้อมูลตัวอย่างสำหรับ fallback/dev, raw/ = ตัวอย่าง API ดิบสำหรับเทสต์
-worker/            Cloudflare Worker: cron ingest → KV, GET /api/data/*.json
+worker/            Cloudflare Worker: เก็บ bundle (text) ใน KV, GET /api/data/{all,index}.json, cron สะกิด GitHub — ไม่ parse อะไรเอง
 web/               Nuxt 3 static (nuxt generate) → Cloudflare Pages
 scripts/           ingest.ts (รันเอง/GitHub Actions), check-sources.ts (เทสต์ parser)
 .github/workflows/ingest.yml   ingest บน GitHub Actions ทุก 10 นาที (ทางเลือกแทน cron ใน Worker)
@@ -48,25 +48,23 @@ Cloudflare รวม Pages เข้ากับ Workers แล้ว → หน
 ```bash
 cd worker && npx wrangler login && cd ..
 npx wrangler kv namespace create FLOOD_DATA --cwd worker   # ครั้งแรก: เอา id ไปใส่ worker/wrangler.toml
-cd worker && npx wrangler secret put INGEST_TOKEN && npx wrangler secret put GISTDA_API_KEY && cd ..
+cd worker && npx wrangler secret put INGEST_TOKEN && npx wrangler secret put GITHUB_DISPATCH_TOKEN && cd ..   # GISTDA_API_KEY อยู่ฝั่ง GitHub secrets ไม่ใช่ Worker
 npm run deploy            # = build:web (nuxt generate, NUXT_PUBLIC_DATA_BASE=/api/data, ตัด data/ ของ dev ออก) + wrangler deploy
-curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://flood-watch.flood-watch-worker.workers.dev/api/ingest/run   # ingest รอบแรกทันที ไม่ต้องรอ cron
+curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://bangkokflood.com/api/ingest/dispatch   # สั่ง GitHub Actions ดึงรอบแรกทันที (หรือ npm run ingest:push จากเครื่องนี้)
 ```
 - อัปเดตครั้งต่อไป: `npm run deploy` คำสั่งเดียว
 - โดเมน: `routes` แบบ `custom_domain = true` ใน `worker/wrangler.toml` — wrangler สร้าง DNS + ใบรับรองให้ตอน deploy (www ใช้เวลาออกใบรับรองไม่กี่นาที)
 - โควตาฟรีที่เป็นเพดานจริง: **Worker 100,000 คำขอ/วัน** (static assets ไม่นับ) — หน้าเว็บโหลด all.json 1 ครั้ง/การเปิด + ทุก 5 นาทีที่เปิดค้าง; ถ้าจะให้รับได้ไม่จำกัดให้เปิด R2 แล้วเพิ่ม binding `DATA_BUCKET` (โค้ดรองรับแล้วใน `storeBundle`) และชี้ `NUXT_PUBLIC_DATA_BASE` ไปที่ custom domain ของ bucket
 - ต้องยืนยันอีเมลของบัญชี Cloudflare ก่อน ไม่งั้น upload Worker จะขึ้น error 10034
-- ผลรัน ingest จาก edge จริง (26 ก.ย. 2569): ดึงได้ครบทั้ง 5 แหล่ง รวมหน้า กทม. ด้วย (Traffy ต้องให้ timeout 75 วิ/หน้า)
-- KV ใช้ key เดียว (`bundle`) → เขียน 1 ครั้ง/รอบ = 144 ครั้ง/วัน (ลิมิตฟรี 1,000) และหน้าเว็บอ่าน 1 ครั้ง/การเปิดหน้า (ลิมิตฟรี 100,000/วัน)
-- **ตัวดึงข้อมูลหลัก = GitHub Actions** (`.github/workflows/ingest.yml` ทุก 10 นาที → `PUT /api/ingest` แบบ `x-ingest-mode: full`, Worker เก็บ text ตรงๆ ไม่ parse) — ยืนยันแล้ว 27 ก.ย. 2569 ว่า cron ใน Worker ถูกฆ่าด้วยลิมิต CPU 10 ms ของ free plan (สถานะ `exceededResources` ทุกรอบ) ตอน parse JSON ของ สสน./Traffy; cron ใน Worker เหลือดึงเฉพาะ BMA + GISTDA (payload เล็ก) เป็นตัวสำรอง
+- KV ใช้ key เดียว (`bundle`, ≈ 3 MB text) → เขียน 1 ครั้ง/รอบ = 144 ครั้ง/วัน (ลิมิตฟรี 1,000) และหน้าเว็บอ่าน 1 ครั้ง/การเปิดหน้า (ลิมิตฟรี 100,000/วัน)
+- **Worker ห้าม `JSON.parse` bundle ในทุกเส้นทาง** — 28 ก.ย. 2569 ทุก `GET /api/data/*` ตอบ 503 (error 1102 `exceededResources`) เพราะเส้นทางอ่านเคย parse 3 MB ทุกครั้งที่ edge cache หมด (CPU p99 66–90 ms ต่อคำขอ เกินลิมิต free plan) → ตอนนี้ `all.json` = text จาก KV ตรงๆ, `index.json` = อ่านเฉพาะหัวไฟล์ (`index` ที่ `scripts/ingest.ts` ฝังไว้ **ก่อน** `sources` ผ่าน `withIndex()`), endpoint ต่อแหล่ง `{source}.json` ถูกตัดออก
+- **ตัวดึงข้อมูลหลัก = GitHub Actions** (`.github/workflows/ingest.yml` ทุก 10 นาที → `PUT /api/ingest` แบบ `x-ingest-mode: full`, Worker เก็บ text ตรงๆ ไม่ parse) — ยืนยันแล้ว 27 ก.ย. 2569 ว่า cron ใน Worker ถูกฆ่าด้วยลิมิต CPU 10 ms ของ free plan (สถานะ `exceededResources` ทุกรอบ) ตอน parse JSON ของ สสน./Traffy; cron ใน Worker **ไม่ดึงอะไรเองแล้ว** (แม้ BMA+GISTDA ก็ต้อง parse ชุดเดิม 3 MB ตอน merge → ถูกฆ่าที่ 10 ms ทุกรอบ ตรวจ 28 ก.ย. 2569) เหลือแค่สะกิด GitHub; ถ้า GitHub ล่มข้อมูลจะค้างและหน้าเว็บขึ้นป้าย "ไม่เป็นปัจจุบัน"
 - Secrets ใน GitHub repo: `WORKER_URL=https://bangkokflood.com`, `INGEST_TOKEN` (จาก `.env`), `GISTDA_API_KEY` (จาก `.env`)
 - **ตัวจับเวลา = cron ของ Cloudflare** (ตรงเวลา) ซึ่งเรียก GitHub `workflow_dispatch` ทุก 10 นาที (`dispatchGithub` ใน Worker, secret `GITHUB_DISPATCH_TOKEN` = fine-grained PAT สิทธิ์ Actions read/write เฉพาะ repo นี้; `GITHUB_REPO` ใน wrangler.toml) — `on: schedule` ของ GitHub เก็บไว้เป็นสำรองแต่ไม่ตรงเวลา/ไม่เริ่มสำหรับ repo ใหม่ (27 ก.ย. 2569 รอ 1 ชม. ไม่ยิงเลย); ทดสอบด้วย `POST /api/ingest/dispatch` (Bearer INGEST_TOKEN) → `github_status: 204`
 - ถ้า PAT หมดอายุ: cron จะ log `github dispatch → 401` และข้อมูล สสน./Traffy จะค้าง → สร้าง PAT ใหม่แล้ว `wrangler secret put GITHUB_DISPATCH_TOKEN`
 - ดูสถิติ cron/CPU: GraphQL `workersInvocationsAdaptive` (dimensions `datetimeHour, status`) — `exceededResources` = โดนลิมิต
-- ถ้า Worker (IP ต่างประเทศ) ดึงหน้า กทม. ไม่ได้ ใช้เครื่องในไทยรัน `npm run ingest:push -- --only bma_flood_road` ผ่าน cron/launchd ทุก 10 นาที
-  (ทดสอบใน `wrangler dev` เมื่อ 26 ก.ย. 2569: สสน. + Traffy ดึงผ่าน Worker ได้, หน้า กทม. ตอบ "internal error" จาก fetch ของ workerd — ต้องดูอีกทีหลัง deploy จริง)
-- ทดสอบในเครื่อง: `cd worker && npx wrangler dev --test-scheduled` แล้ว `curl "http://localhost:8787/__scheduled?cron=*/10+*+*+*+*"` เพื่อยิง cron (ผลอยู่ใน log ของ wrangler, KV local อยู่ที่ `worker/.wrangler/state`)
-- ก่อน KV มีข้อมูล Worker จะตอบ `shared/snapshots/all.json` พร้อม `snapshot: true` (หน้าเว็บขึ้นป้าย "ข้อมูลตัวอย่าง")
+- ทดสอบในเครื่อง: `cd worker && npx wrangler dev` แล้ว `npm run ingest:push` (WORKER_URL=http://localhost:8787) — KV local อยู่ที่ `worker/.wrangler/state`
+- ก่อน KV มีข้อมูล Worker จะตอบ bundle ว่างพร้อม header `x-data-snapshot: true` (หน้าเว็บขึ้น "ไม่มีข้อมูล")
 
 ### สถิติผู้เข้าชม
 - **Cloudflare Web Analytics** (ฟรี, ไม่ใช้คุกกี้): เปิดไว้แล้วสำหรับ `bangkokflood.com` แบบ *Automatic setup* (Cloudflare ฉีด beacon ให้เองที่ edge ไม่ต้องแก้โค้ด) — ดูที่ dashboard → Analytics → Web analytics; ส่วนจำนวนคำขอ/error ของ API ดูที่ Workers & Pages → flood-watch → Metrics
@@ -92,7 +90,7 @@ curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://flood-watch.flood-
 
 ## ทดสอบกรณีแหล่งข้อมูลล่ม
 - `ingestAll` ใช้ `Promise.allSettled` — แหล่งที่ล้มจะคงชุดเดิมจาก KV + `stale: true, error`
-- อ่านจาก KV ทุกครั้งจะคำนวณ `stale` ใหม่ถ้า `fetched_at` เก่ากว่า 30 นาที (ไม่ต้องเขียน KV เพิ่ม)
+- ป้าย "ไม่เป็นปัจจุบัน" (fetched_at เก่ากว่า 30 นาที / GISTDA 24 ชม.) คำนวณฝั่งหน้าเว็บ (`SourceStatus.vue`) — Worker ไม่แตะเนื้อหา bundle
 - หน้าเว็บ: chip ของแหล่งขึ้นป้าย "ไม่เป็นปัจจุบัน" + banner เตือนด้านบน; ถ้าโหลด all.json ไม่ได้เลย ขึ้น banner แดงพร้อมลิงก์ไป `/links`
 
 ## Definition of Done (Phase 0) — สถานะ
