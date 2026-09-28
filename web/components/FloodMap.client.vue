@@ -58,7 +58,10 @@ const GISTDA_LAYER = 'gistda-raster'
 const CCTV_LAYER = 'cctv-cam'
 const CCTV_ICON = 'cctv-icon'
 let cctvImg: HTMLImageElement | undefined
-const CCTV_LIVE_URL = 'https://cpudapp.bangkok.go.th/bmatraffic' // หน้าดูภาพสดของ กทม. (มีเงื่อนไขการใช้งาน จึงลิงก์ออกอย่างเดียว)
+// หน้าดูภาพสดของ กทม. (มีเงื่อนไขการใช้งาน จึงลิงก์ออกอย่างเดียว) — ล่มบ่อย: 28 ก.ย. 2569 ทั้ง bmatraffic.com และ cpudapp.bangkok.go.th/bmatraffic เปิดไม่ได้ (502)
+// จึงให้ลิงก์หลักเป็น Longdo Traffic ซึ่งรวมกล้อง กทม. ไว้และรับ ?lat=&lon=&zoom= เพื่อเปิดตรงตำแหน่งกล้องนั้น (ตรวจแล้ว)
+const CCTV_BMA_URL = 'http://www.bmatraffic.com/'
+const cctvLongdoUrl = (lngLat: [number, number]) => `https://traffic.longdo.com/main/?lat=${lngLat[1].toFixed(5)}&lon=${lngLat[0].toFixed(5)}&zoom=16`
 interface CctvProps { id: string; name: string; district: string; cameras: number }
 const gistdaKey = String(useRuntimeConfig().public.gistdaKey ?? '')
 const gistdaPeriod = ref<GistdaPeriod>('3days')
@@ -249,13 +252,18 @@ function openCctvPopup(lngLat: [number, number], p: CctvProps) {
   add('div', `กล้อง CCTV จราจร กทม.${p.cameras > 1 ? ` · ${p.cameras} ตัว` : ''}`, 'popup-value')
   add('div', `เขต${p.district} · รหัส ${p.id}`, 'muted small')
   add('div', 'ตำแหน่งจาก Open Data กทม. — เป็นกล้องจราจร ไม่ใช่เซนเซอร์วัดน้ำท่วม', 'muted small')
-  const a = document.createElement('a')
-  a.href = CCTV_LIVE_URL
-  a.target = '_blank'
-  a.rel = 'noopener'
-  a.textContent = 'ดูภาพสดที่ CCTV กทม. ↗'
-  a.className = 'small'
-  box.appendChild(a)
+  const link = (href: string, text: string, cls: string) => {
+    const a = document.createElement('a')
+    a.href = href
+    a.target = '_blank'
+    a.rel = 'noopener'
+    a.textContent = text
+    a.className = cls
+    box.appendChild(a)
+  }
+  link(cctvLongdoUrl(lngLat), '📺 ดูภาพสดบริเวณนี้ผ่าน Longdo Traffic ↗', 'btn btn-primary btn-block popup-btn')
+  add('div', 'ในหน้า Longdo กด "ชั้นข้อมูล" แล้วเปิดกล้อง CCTV', 'muted small')
+  link(CCTV_BMA_URL, 'เว็บ CCTV ของ กทม. (bmatraffic.com) ↗ — ล่มบ่อย', 'small')
   popup?.remove()
   popup = new ml.Popup({ maxWidth: '300px' }).setLngLat(lngLat).setDOMContent(box).addTo(map)
   requestAnimationFrame(ensurePopupVisible)

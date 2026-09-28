@@ -28,8 +28,8 @@ const GROUPS: { title: string; icon: string; links: Link[] }[] = [
     title: 'ถนน · CCTV · การเดินทาง',
     icon: '🚗',
     links: [
-      { name: 'CCTV จราจร กทม.', url: 'https://cpudapp.bangkok.go.th/bmatraffic', note: 'ดูภาพสดจากกล้อง (มีเงื่อนไขการใช้งาน ไม่สามารถนำมาแสดงในเว็บนี้)' },
-      { name: 'Longdo Traffic', url: 'https://traffic.longdo.com', note: 'เหตุการณ์จราจร น้ำท่วม จากผู้ใช้ + CCTV' },
+      { name: 'Longdo Traffic (มีกล้อง CCTV กทม.)', url: 'https://traffic.longdo.com/main/', note: 'เหตุการณ์จราจร น้ำท่วม จากผู้ใช้ + ภาพสดกล้อง CCTV — เปิด "ชั้นข้อมูล" แล้วเลือกกล้อง' },
+      { name: 'CCTV จราจร กทม. (bmatraffic.com)', url: 'http://www.bmatraffic.com/', note: 'เว็บทางการของ กทม. ล่มบ่อย (28 ก.ย. 69 เปิดไม่ได้) — มีเงื่อนไขการใช้งาน ไม่สามารถนำภาพมาแสดงในเว็บนี้' },
       { name: 'กรมทางหลวง — สถานการณ์น้ำท่วมบนทางหลวง', url: 'https://hdms.doh.go.th/dashboard', note: 'จุดที่ผ่านไม่ได้บนทางหลวงทั่วประเทศ' },
       { name: 'กรมทางหลวงชนบท — สถานะสายทาง', url: 'https://scs.drr.go.th', note: 'สายทางชนบทที่ได้รับผลกระทบ' },
       { name: 'การรถไฟฯ — สถานะขบวนรถ', url: 'https://ttsview.railway.co.th/v3/', note: 'ตรวจสอบขบวนรถล่าช้า / งดเดิน' },
