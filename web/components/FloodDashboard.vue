@@ -2,6 +2,7 @@
 // แดชบอร์ด (สถานะแหล่ง + chip เลเยอร์ + แผนที่ + รายการ) ใช้ทั้งหน้าแรกและหน้ารายเขต/จังหวัด
 // ถ้าส่ง province/district มา รายการจะกรองให้และแผนที่ซูมไปพื้นที่นั้นเมื่อข้อมูลมาถึง
 import { fmtInt, SOURCE_IDS, SOURCE_META, type FloodFeature, type SourceId } from '../utils/format'
+import cctvData from '../data/cctv-bma.json'
 
 const props = defineProps<{ province?: string; district?: string }>()
 const { bundle, error, loading, now, reload } = useFloodData()
@@ -16,6 +17,9 @@ const visible = reactive<Record<SourceId, boolean>>({
   gistda_flood: hasGistdaKey,
 })
 const layerIds = computed(() => SOURCE_IDS.filter((id) => id !== 'gistda_flood' || hasGistdaKey))
+// กล้อง CCTV จราจร กทม. (เลเยอร์ static จาก Open Data — ปิดไว้เป็นค่าเริ่มต้น ไม่ให้รกแผนที่น้ำท่วม)
+const cctv = ref(false)
+const CCTV_PINS = cctvData.count
 const focus = ref<FloodFeature | null>(null)
 const mapRef = ref<{ fitRegion: (r: 'bkk' | 'th') => void; fitTo: (b: [number, number, number, number]) => void } | null>(null)
 const mapReady = ref(false)
@@ -61,12 +65,20 @@ watch(mapReady, tryFit)
         <span v-if="bundle && id === 'gistda_flood'" class="small">{{ fmtInt(layerCount(id)) }} เซลล์</span>
         <span v-else-if="bundle" class="small">{{ fmtInt(abnormal(id)) }}/{{ fmtInt(layerCount(id)) }}</span>
       </button>
+      <button
+        class="chip" :aria-pressed="cctv" title="ตำแหน่งกล้อง CCTV จราจรของ กทม. — แตะหมุดเพื่อไปดูภาพสดที่เว็บ กทม."
+        @click="cctv = !cctv"
+      >
+        <span class="mark mark-cctv" />
+        กล้อง CCTV
+        <span class="small">{{ fmtInt(CCTV_PINS) }} จุด</span>
+      </button>
       <button class="chip" :disabled="loading" title="โหลดข้อมูลใหม่" @click="reload">↻</button>
     </div>
 
     <div class="grid">
       <ClientOnly>
-        <FloodMap ref="mapRef" :bundle="bundle" :visible="visible" :focus="focus" :now="now" @ready="mapReady = true" />
+        <FloodMap ref="mapRef" :bundle="bundle" :visible="visible" :cctv="cctv" :focus="focus" :now="now" @ready="mapReady = true" />
         <template #fallback>
           <div class="map-fallback card muted">กำลังโหลดแผนที่…</div>
         </template>
@@ -89,6 +101,7 @@ watch(mapReady, tryFit)
 .mark-thaiwater_rain { border-color: #4a148c; }
 .mark-traffy_flood { border-color: #37474f; }
 .mark-gistda_flood { border-color: #224ca9; background: rgba(34, 76, 169, 0.75); border-radius: 3px; }
+.mark-cctv { border-color: #fff; background: #546e7a; }
 .grid { display: grid; gap: 14px; }
 .grid > * { min-width: 0; }
 @media (min-width: 960px) {

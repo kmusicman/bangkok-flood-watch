@@ -13,7 +13,7 @@ shared/            โค้ดกลางที่ Worker, สคริปต�
   snapshots/       all.json = ข้อมูลตัวอย่างสำหรับ fallback/dev, raw/ = ตัวอย่าง API ดิบสำหรับเทสต์
 worker/            Cloudflare Worker: เก็บ bundle (text) ใน KV, GET /api/data/{all,index}.json, cron สะกิด GitHub — ไม่ parse อะไรเอง
 web/               Nuxt 3 static (nuxt generate) → Cloudflare Pages
-scripts/           ingest.ts (รันเอง/GitHub Actions), check-sources.ts (เทสต์ parser)
+scripts/           ingest.ts (รันเอง/GitHub Actions), check-sources.ts (เทสต์ parser), build-cctv.ts (เลเยอร์กล้อง CCTV static)
 .github/workflows/ingest.yml   ingest บน GitHub Actions ทุก 10 นาที (ทางเลือกแทน cron ใน Worker)
 ```
 
@@ -87,6 +87,11 @@ curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://bangkokflood.com/a
 
 ### GISTDA keys
 ที่ `api-gateway.gistda.or.th` → API Keys → สร้าง 2 key: (1) ข้อจำกัด "ไม่มี" → `wrangler secret put GISTDA_API_KEY` (2) ข้อจำกัด "อ้างอิง HTTP" ใส่โดเมนเว็บ (`https://flood-watch.flood-watch-worker.workers.dev` + `http://localhost:3000` สำหรับ dev) → `web/.env` `NUXT_PUBLIC_GISTDA_KEY` (ถูก inline ตอน build) — ปุ่ม "แสดงผล API Key" โชว์ค่าที่ถูกบังไว้ ต้องกด "คัดลอก" เท่านั้นถึงได้ key จริง; ถ้าย้ายโดเมนต้องกลับไปแก้รายการ referrer
+
+## เลเยอร์กล้อง CCTV จราจร กทม. (static)
+- ที่มา: Open Data กทม. `data.bangkok.go.th/dataset/bma-cctv` (CSV 238 กล้อง มีพิกัด; อัปเดตล่าสุด มิ.ย. 2567, ไม่ระบุ license) → `npm run build:cctv` เขียน `web/data/cctv-bma.json` (185 หมุด — กล้องหลายตัวบนเสาเดียวรวมเป็นหมุดเดียว) แล้ว commit ไฟล์ — ฝังใน build ไม่ผ่าน Worker/KV
+- แสดงเป็นหมุดเทาเล็กใต้หมุดน้ำท่วม ปิดเป็นค่าเริ่มต้น (chip "กล้อง CCTV") popup มีปุ่มไปดูภาพสดที่ `cpudapp.bangkok.go.th/bmatraffic`
+- **ไม่ดึงภาพ/สตรีม** จาก bmatraffic มาแสดง (เงื่อนไขการใช้งานของ กทม. — CLAUDE.md ข้อ 3.2) และ CSV ไม่มีรหัสที่จับคู่กับหน้ากล้องรายตัวได้ จึงลิงก์ไปหน้ารวม; ArcGIS ของ กทม. (`cpudgiportal`) ไม่มีเลเยอร์ CCTV (ตรวจ 28 ก.ย. 2569)
 
 ## ทดสอบกรณีแหล่งข้อมูลล่ม
 - `ingestAll` ใช้ `Promise.allSettled` — แหล่งที่ล้มจะคงชุดเดิมจาก KV + `stale: true, error`

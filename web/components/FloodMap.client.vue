@@ -10,9 +10,13 @@ import {
   type FloodBundle, type FloodFeature, type FloodProps, type SourceId,
 } from '../utils/format'
 
+// เลเยอร์ static: ตำแหน่งกล้อง CCTV จราจร กทม. (Open Data กทม. — สร้างด้วย scripts/build-cctv.ts) หมุด + ลิงก์ออกเท่านั้น ไม่ดึงภาพ
+import cctvData from '../data/cctv-bma.json'
+
 const props = defineProps<{
   bundle: FloodBundle | null
   visible: Record<SourceId, boolean>
+  cctv: boolean
   focus: FloodFeature | null
   now: number
 }>()
@@ -47,6 +51,10 @@ const GISTDA_PERIODS: { id: GistdaPeriod; label: string; path: string }[] = [
   { id: 'freq', label: 'ท่วมซ้ำซาก', path: 'flood-freq' },
 ]
 const GISTDA_LAYER = 'gistda-raster'
+// id ห้ามลงท้าย -pt/-cluster (onClickPoint/syncGistdaLayer แยกเลเยอร์จุดน้ำท่วมด้วย suffix นั้น)
+const CCTV_LAYER = 'cctv-cam'
+const CCTV_LIVE_URL = 'https://cpudapp.bangkok.go.th/bmatraffic' // หน้าดูภาพสดของ กทม. (มีเงื่อนไขการใช้งาน จึงลิงก์ออกอย่างเดียว)
+interface CctvProps { id: string; name: string; district: string; cameras: number }
 const gistdaKey = String(useRuntimeConfig().public.gistdaKey ?? '')
 const gistdaPeriod = ref<GistdaPeriod>('3days')
 const gistdaOn = computed(() => !!gistdaKey && props.visible.gistda_flood)
@@ -76,8 +84,8 @@ function syncGistdaLayer() {
     maxzoom: 15,
     attribution: '© GISTDA Disaster Platform',
   })
-  // วางใต้เลเยอร์จุดทั้งหมด
-  const firstPoint = map.getStyle().layers.find((l) => l.id.endsWith('-pt') || l.id.endsWith('-cluster'))?.id
+  // วางใต้เลเยอร์จุดทั้งหมด (รวมกล้อง CCTV)
+  const firstPoint = map.getStyle().layers.find((l) => l.id === CCTV_LAYER || l.id.endsWith('-pt') || l.id.endsWith('-cluster'))?.id
   map.addLayer({ id: GISTDA_LAYER, type: 'raster', source: GISTDA_LAYER, paint: { 'raster-opacity': 0.75 } }, firstPoint)
 }
 
@@ -85,6 +93,25 @@ function addLayers() {
   if (!map) return
   const levelColor = ['match', ['get', 'level'], 'critical', LEVEL_COLOR.critical, 'warning', LEVEL_COLOR.warning, 'watch', LEVEL_COLOR.watch, LEVEL_COLOR.normal]
   const levelRank = ['match', ['get', 'level'], 'critical', 3, 'warning', 2, 'watch', 1, 0]
+  // กล้อง CCTV: เพิ่มก่อนเลเยอร์น้ำท่วมเพื่อให้อยู่ใต้หมุดน้ำท่วมเสมอ (หมุดเทาเล็ก ไม่แย่งความสนใจ)
+  if (!map.getSource(CCTV_LAYER)) map.addSource(CCTV_LAYER, { type: 'geojson', data: cctvData as GeoJSON.FeatureCollection })
+  map.addLayer({
+    id: CCTV_LAYER, type: 'circle', source: CCTV_LAYER,
+    layout: { visibility: props.cctv ? 'visible' : 'none' },
+    paint: {
+      'circle-color': '#546e7a', 'circle-opacity': 0.9,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 12, 5, 15, 7] as never,
+      'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff',
+    },
+  })
+  map.on('click', CCTV_LAYER, (e: MapMouseEvent) => {
+    // ถ้ามีหมุดน้ำท่วมซ้อนอยู่ ให้ onClickPoint จัดการแทน
+    if (map!.queryRenderedFeatures(e.point).some((x) => x.layer.id.endsWith('-pt'))) return
+    const f = map!.queryRenderedFeatures(e.point, { layers: [CCTV_LAYER] })[0]
+    if (f) openCctvPopup((f.geometry as GeoJSON.Point).coordinates as [number, number], f.properties as unknown as CctvProps)
+  })
+  map.on('mouseenter', CCTV_LAYER, () => { map!.getCanvas().style.cursor = 'pointer' })
+  map.on('mouseleave', CCTV_LAYER, () => { map!.getCanvas().style.cursor = '' })
   for (const id of POINT_SOURCES) {
     const cluster = id === 'traffy_flood' // เรื่องร้องเรียนมีหลายพันจุด → รวมกลุ่มตอนซูมออก
     if (!map.getSource(id)) {
@@ -196,6 +223,33 @@ function openPopup(lngLat: [number, number], p: FloodProps, anchor?: 'bottom') {
   requestAnimationFrame(ensurePopupVisible)
 }
 
+/** popup กล้อง CCTV: ชื่อจุด + จำนวนกล้อง + ปุ่มไปดูภาพสดที่เว็บ กทม. (ไม่ฝังภาพ) */
+function openCctvPopup(lngLat: [number, number], p: CctvProps) {
+  if (!map || !ml) return
+  const box = document.createElement('div')
+  const add = (tag: string, text: string, cls?: string) => {
+    const n = document.createElement(tag)
+    n.textContent = text
+    if (cls) n.className = cls
+    box.appendChild(n)
+    return n
+  }
+  add('div', `📷 ${p.name}`, 'popup-title')
+  add('div', `กล้อง CCTV จราจร กทม.${p.cameras > 1 ? ` · ${p.cameras} ตัว` : ''}`, 'popup-value')
+  add('div', `เขต${p.district} · รหัส ${p.id}`, 'muted small')
+  add('div', 'ตำแหน่งจาก Open Data กทม. — เป็นกล้องจราจร ไม่ใช่เซนเซอร์วัดน้ำท่วม', 'muted small')
+  const a = document.createElement('a')
+  a.href = CCTV_LIVE_URL
+  a.target = '_blank'
+  a.rel = 'noopener'
+  a.textContent = 'ดูภาพสดที่ CCTV กทม. ↗'
+  a.className = 'small'
+  box.appendChild(a)
+  popup?.remove()
+  popup = new ml.Popup({ maxWidth: '300px' }).setLngLat(lngLat).setDOMContent(box).addTo(map)
+  requestAnimationFrame(ensurePopupVisible)
+}
+
 /** ถ้า popup ล้นขอบแผนที่ (จอเตี้ย/รูปสูง) ให้เลื่อนแผนที่ตามจนเห็นครบ — ขอบบนสำคัญสุดเพราะรูปอยู่บนสุด */
 function ensurePopupVisible() {
   const el = popup?.getElement()
@@ -261,6 +315,10 @@ watch(() => ({ ...props.visible }), (vis) => {
   syncGistdaLayer()
 })
 watch(gistdaPeriod, syncGistdaLayer)
+watch(() => props.cctv, (on) => {
+  if (map?.getLayer(CCTV_LAYER)) map.setLayoutProperty(CCTV_LAYER, 'visibility', on ? 'visible' : 'none')
+  if (!on) popup?.remove()
+})
 watch(() => props.focus, (f) => {
   if (!f || !map) return
   const c = f.geometry.coordinates
@@ -292,6 +350,7 @@ defineExpose({ fitRegion, fitTo })
         <span class="dot" :class="`dot-${lv}`" /> {{ LEVEL_LABEL[lv] }}
       </div>
       <div v-if="gistdaOn" class="legend-row"><span class="swatch" /> พื้นที่น้ำท่วม (ดาวเทียม)</div>
+      <div v-if="cctv" class="legend-row"><span class="dot dot-cctv" /> กล้อง CCTV จราจร</div>
     </div>
   </div>
 </template>
@@ -309,5 +368,6 @@ defineExpose({ fitRegion, fitTo })
 .chip-sm { min-height: 30px; padding: 4px 10px; font-size: 13px; box-shadow: var(--shadow); }
 .legend { position: absolute; left: 10px; bottom: 28px; padding: 8px 10px; z-index: 1; display: grid; gap: 4px; box-shadow: var(--shadow); }
 .legend-row { display: flex; align-items: center; gap: 6px; }
+.dot-cctv { background: #546e7a; border: 1.5px solid #fff; }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(34, 76, 169, 0.75); border: 1px solid #224ca9; flex: none; }
 </style>

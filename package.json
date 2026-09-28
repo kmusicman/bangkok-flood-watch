@@ -17,6 +17,7 @@
     "check": "node scripts/check-sources.ts",
     "dev": "npm run dev -w web",
     "generate": "npm run generate -w web",
+    "build:cctv": "node scripts/build-cctv.ts",
     "build:web": "node scripts/build-static-pages.ts && NUXT_IGNORE_LOCK=1 NUXT_PUBLIC_DATA_BASE=/api/data npm run generate -w web && rm -rf web/.output/public/data",
     "deploy": "npm run build:web && npm run deploy -w worker",
     "deploy:worker": "npm run deploy -w worker"
