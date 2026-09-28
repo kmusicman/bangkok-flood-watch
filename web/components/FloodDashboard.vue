@@ -69,7 +69,7 @@ watch(mapReady, tryFit)
         class="chip" :aria-pressed="cctv" title="ตำแหน่งกล้อง CCTV จราจรของ กทม. — แตะหมุดเพื่อไปดูภาพสดที่เว็บ กทม."
         @click="cctv = !cctv"
       >
-        <span class="mark mark-cctv" />
+        <CctvIcon />
         กล้อง CCTV
         <span class="small">{{ fmtInt(CCTV_PINS) }} จุด</span>
       </button>
@@ -100,9 +100,7 @@ watch(mapReady, tryFit)
 .mark-thaiwater_waterlevel { border-color: #0d47a1; }
 .mark-thaiwater_rain { border-color: #4a148c; }
 .mark-traffy_flood { border-color: #37474f; }
-.mark-gistda_flood { border-color: #224ca9; background: rgba(34, 76, 169, 0.75); border-radius: 3px; }
-.mark-cctv { border-color: #fff; background: #546e7a; }
-.grid { display: grid; gap: 14px; }
+.mark-gistda_flood { border-color: #224ca9; background: rgba(34, 76, 169, 0.75); border-radius: 3px; }.grid { display: grid; gap: 14px; }
 .grid > * { min-width: 0; }
 @media (min-width: 960px) {
   .grid { grid-template-columns: 3fr 2fr; align-items: start; }

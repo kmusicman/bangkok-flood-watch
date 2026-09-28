@@ -12,6 +12,7 @@ import {
 
 // เลเยอร์ static: ตำแหน่งกล้อง CCTV จราจร กทม. (Open Data กทม. — สร้างด้วย scripts/build-cctv.ts) หมุด + ลิงก์ออกเท่านั้น ไม่ดึงภาพ
 import cctvData from '../data/cctv-bma.json'
+import { loadCctvImage } from '../utils/cctvIcon'
 
 const props = defineProps<{
   bundle: FloodBundle | null
@@ -53,6 +54,8 @@ const GISTDA_PERIODS: { id: GistdaPeriod; label: string; path: string }[] = [
 const GISTDA_LAYER = 'gistda-raster'
 // id ห้ามลงท้าย -pt/-cluster (onClickPoint/syncGistdaLayer แยกเลเยอร์จุดน้ำท่วมด้วย suffix นั้น)
 const CCTV_LAYER = 'cctv-cam'
+const CCTV_ICON = 'cctv-icon'
+let cctvImg: HTMLImageElement | undefined
 const CCTV_LIVE_URL = 'https://cpudapp.bangkok.go.th/bmatraffic' // หน้าดูภาพสดของ กทม. (มีเงื่อนไขการใช้งาน จึงลิงก์ออกอย่างเดียว)
 interface CctvProps { id: string; name: string; district: string; cameras: number }
 const gistdaKey = String(useRuntimeConfig().public.gistdaKey ?? '')
@@ -95,13 +98,16 @@ function addLayers() {
   const levelRank = ['match', ['get', 'level'], 'critical', 3, 'warning', 2, 'watch', 1, 0]
   // กล้อง CCTV: เพิ่มก่อนเลเยอร์น้ำท่วมเพื่อให้อยู่ใต้หมุดน้ำท่วมเสมอ (หมุดเทาเล็ก ไม่แย่งความสนใจ)
   if (!map.getSource(CCTV_LAYER)) map.addSource(CCTV_LAYER, { type: 'geojson', data: cctvData as GeoJSON.FeatureCollection })
+  // setStyle ล้างรูปด้วย → ใส่รูปไอคอนใหม่ทุกครั้งที่สร้างเลเยอร์ (รูปโหลดไว้แล้วตอน mount)
+  if (cctvImg && !map.hasImage(CCTV_ICON)) map.addImage(CCTV_ICON, cctvImg, { pixelRatio: 2 })
   map.addLayer({
-    id: CCTV_LAYER, type: 'circle', source: CCTV_LAYER,
-    layout: { visibility: props.cctv ? 'visible' : 'none' },
-    paint: {
-      'circle-color': '#546e7a', 'circle-opacity': 0.9,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 12, 5, 15, 7] as never,
-      'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff',
+    id: CCTV_LAYER, type: 'symbol', source: CCTV_LAYER,
+    layout: {
+      visibility: props.cctv ? 'visible' : 'none',
+      'icon-image': CCTV_ICON,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.55, 12, 0.8, 15, 1] as never,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
     },
   })
   map.on('click', CCTV_LAYER, (e: MapMouseEvent) => {
@@ -281,6 +287,7 @@ function fitTo(b: [number, number, number, number]) {
 onMounted(async () => {
   ml = await import('maplibre-gl')
   ml.setWorkerUrl(maplibreWorkerUrl)
+  cctvImg = await loadCctvImage().catch(() => undefined) // ถ้าโหลดไม่ได้ เลเยอร์กล้องจะไม่แสดง แต่แผนที่ยังทำงาน
   map = new ml.Map({
     container: el.value!,
     style: dark.matches ? STYLE_DARK : STYLE_LIGHT,
@@ -350,7 +357,7 @@ defineExpose({ fitRegion, fitTo })
         <span class="dot" :class="`dot-${lv}`" /> {{ LEVEL_LABEL[lv] }}
       </div>
       <div v-if="gistdaOn" class="legend-row"><span class="swatch" /> พื้นที่น้ำท่วม (ดาวเทียม)</div>
-      <div v-if="cctv" class="legend-row"><span class="dot dot-cctv" /> กล้อง CCTV จราจร</div>
+      <div v-if="cctv" class="legend-row"><CctvIcon /> กล้อง CCTV จราจร</div>
     </div>
   </div>
 </template>
@@ -368,6 +375,5 @@ defineExpose({ fitRegion, fitTo })
 .chip-sm { min-height: 30px; padding: 4px 10px; font-size: 13px; box-shadow: var(--shadow); }
 .legend { position: absolute; left: 10px; bottom: 28px; padding: 8px 10px; z-index: 1; display: grid; gap: 4px; box-shadow: var(--shadow); }
 .legend-row { display: flex; align-items: center; gap: 6px; }
-.dot-cctv { background: #546e7a; border: 1.5px solid #fff; }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(34, 76, 169, 0.75); border: 1px solid #224ca9; flex: none; }
 </style>
