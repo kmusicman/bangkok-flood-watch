@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { BANGKOK_DISTRICTS } from '../data/areas'
 
+
 useHead({
   title: 'น้ำท่วมวันนี้ กรุงเทพฯ และทั่วประเทศ — แผนที่น้ำท่วมเรียลไทม์ | Bangkok Flood Watch',
   link: [
@@ -14,17 +15,17 @@ useHead({
 
 <template>
   <div class="home">
-    <!-- ข้อความนี้อยู่ใน HTML ที่ prerender แล้ว → Google อ่านได้แม้ยังไม่รัน JS (ส่วนแผนที่/รายการโหลดฝั่ง client) -->
-    <section class="intro">
-      <h1>น้ำท่วมวันนี้ — แผนที่น้ำท่วมกรุงเทพฯ และทั่วประเทศ</h1>
+    <FloodDashboard />
+
+    <!-- ข้อความนี้อยู่ใน HTML ที่ prerender แล้ว → Google อ่านได้แม้ยังไม่รัน JS (h1 อยู่ในแถบบน คำนวณจาก route ใน utils/headings.ts) -->
+    <section class="intro card">
+      <h2>เกี่ยวกับข้อมูลในแผนที่</h2>
       <p class="muted small">
         เช็กถนนที่น้ำท่วมใน กทม. จากเซนเซอร์สำนักการระบายน้ำ, ระดับน้ำและฝนสะสมทั่วประเทศจากคลังข้อมูลน้ำแห่งชาติ (สสน.),
         เรื่องร้องเรียนน้ำท่วมจากประชาชนผ่าน Traffy Fondue และพื้นที่น้ำท่วมจากดาวเทียม GISTDA — อัปเดตอัตโนมัติทุก 10 นาที
         แตะหมุดหรือรายการเพื่อดูระดับน้ำ รูป และเวลาอัปเดต · ต้องการความช่วยเหลือโทร <a href="tel:1784">1784</a> หรือ <a href="tel:1669">1669</a>
       </p>
     </section>
-
-    <FloodDashboard />
 
     <!-- ลิงก์ภายในไปหน้ารายเขต/จังหวัด (ช่วยให้ Google เจอและจัดอันดับคำค้นรายพื้นที่) -->
     <section class="areas card">
@@ -40,7 +41,7 @@ useHead({
 <style scoped>
 .home { display: grid; gap: 10px; }
 .home > * { min-width: 0; }
-.intro h1 { font-size: 20px; margin: 4px 0 2px; }
+.intro h2 { font-size: 17px; margin: 0 0 6px; }
 .intro p { margin: 0; }
 .areas h2 { font-size: 17px; margin: 0 0 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -2,7 +2,7 @@
 // แถบบน: เวลาอัปเดตล่าสุดของแต่ละแหล่ง + ป้าย "ข้อมูลอาจไม่เป็นปัจจุบัน" ถ้า stale > 30 นาที
 import { fmtInt, fmtTime, isStale, relTime, SOURCE_IDS, SOURCE_META, type FloodBundle, type SourceId } from '../utils/format'
 
-const props = defineProps<{ bundle: FloodBundle | null; now: number; error: string | null; loading: boolean }>()
+const props = defineProps<{ bundle: FloodBundle | null; now: number; error: string | null; loading: boolean; /** แสดงเป็นแถวแนวตั้งในแผงขวา แทน chip เลื่อนแนวนอน */ vertical?: boolean }>()
 
 const hasGistdaKey = !!useRuntimeConfig().public.gistdaKey
 const rows = computed(() =>
@@ -27,7 +27,7 @@ const anySnapshot = computed(() => rows.value.some((r) => r.snapshot))
     <div v-else-if="anyStale" class="banner banner-warn">⚠️ บางแหล่งข้อมูล<b>อาจไม่เป็นปัจจุบัน</b> (เกิน 30 นาที) — ตรวจสอบกับหน่วยงานโดยตรงก่อนตัดสินใจ</div>
     <div v-else-if="error" class="banner banner-warn">รีเฟรชล่าสุดไม่สำเร็จ ({{ error }}) — แสดงข้อมูลชุดก่อนหน้า</div>
 
-    <div class="chips">
+    <div class="chips" :class="{ vertical }">
       <div v-for="r in rows" :key="r.id" class="chip src" :class="{ stale: r.stale }" :title="r.meta.name + (r.c?.error ? ` — ${r.c.error}` : '')">
         <span class="name">{{ r.meta.short }}</span>
         <template v-if="r.c">
@@ -53,4 +53,6 @@ const anySnapshot = computed(() => rows.value.some((r) => r.snapshot))
 .src { cursor: default; flex: none; }
 .src.stale { border-color: #e0b000; }
 .name { font-weight: 600; }
+.chips.vertical { flex-direction: column; overflow: visible; padding: 0; }
+.chips.vertical .src { border-radius: 12px; white-space: normal; flex-wrap: wrap; row-gap: 2px; }
 </style>

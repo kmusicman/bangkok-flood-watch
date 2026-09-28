@@ -7,7 +7,7 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import type { GeoJSONSource, Map as MLMap, MapMouseEvent } from 'maplibre-gl'
 import {
   fmtTime, fmtValue, LEVEL_COLOR, LEVEL_LABEL, relTime, SOURCE_IDS, SOURCE_META,
-  type FloodBundle, type FloodFeature, type FloodProps, type SourceId,
+  type FloodBundle, type FloodFeature, type FloodProps, type Level, type SourceId,
 } from '../utils/format'
 
 // เลเยอร์ static: ตำแหน่งกล้อง CCTV จราจร กทม. (Open Data กทม. — สร้างด้วย scripts/build-cctv.ts) หมุด + ลิงก์ออกเท่านั้น ไม่ดึงภาพ
@@ -18,6 +18,8 @@ const props = defineProps<{
   bundle: FloodBundle | null
   visible: Record<SourceId, boolean>
   cctv: boolean
+  /** กรองหมุดเฉพาะระดับนี้ ('' = ทุกระดับ) — จากการ์ดนับสถานะ */
+  level: Level | ''
   focus: FloodFeature | null
   now: number
 }>()
@@ -70,7 +72,10 @@ let popup: import('maplibre-gl').Popup | undefined
 let styleReady = false // true หลัง 'load' / 'style.load' ของสไตล์ปัจจุบัน
 const dark = window.matchMedia('(prefers-color-scheme: dark)')
 
-const toFC = (id: SourceId) => ({ type: 'FeatureCollection' as const, features: props.bundle?.sources[id]?.features ?? [] })
+const toFC = (id: SourceId) => {
+  const all = props.bundle?.sources[id]?.features ?? []
+  return { type: 'FeatureCollection' as const, features: props.level ? all.filter((f) => f.properties.level === props.level) : all }
+}
 
 function syncGistdaLayer() {
   // ห้ามใช้ isStyleLoaded() ตรงนี้ — ตอน 'load' แหล่ง GeoJSON ที่เพิ่งเพิ่มยังโหลดอยู่ทำให้คืน false แล้วชั้นดาวเทียมไม่ถูกเพิ่มตอนเปิดหน้า
@@ -277,6 +282,15 @@ function fitRegion(r: Region) {
   map?.fitBounds(BOUNDS[r], { padding: 20, duration: 600 })
 }
 
+/** ซูมไปตำแหน่งผู้ใช้ (แท็บใกล้ฉัน) พร้อมหมุดตำแหน่ง */
+function flyToUser(c: [number, number]) {
+  if (!map || !ml) return
+  userMarker?.remove()
+  userMarker = new ml.Marker({ color: '#0b6fb8' }).setLngLat(c).addTo(map)
+  map.flyTo({ center: c, zoom: Math.max(map.getZoom(), 13), duration: 800 })
+}
+let userMarker: import('maplibre-gl').Marker | undefined
+
 /** ซูมให้ครอบคลุม bbox [minLng, minLat, maxLng, maxLat] (หน้ารายเขต/จังหวัด) */
 function fitTo(b: [number, number, number, number]) {
   if (!map) return
@@ -296,8 +310,8 @@ onMounted(async () => {
     maxZoom: 18,
     attributionControl: { compact: true },
   })
-  map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right')
-  map.addControl(new ml.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false }), 'top-right')
+  map.addControl(new ml.NavigationControl({ showCompass: false }), 'bottom-right')
+  map.addControl(new ml.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false }), 'bottom-right')
   map.on('load', () => { styleReady = true; addLayers(); emit('ready') })
   // สลับสไตล์ตามธีมเครื่อง แล้วใส่เลเยอร์กลับ (setStyle ล้างเลเยอร์ทั้งหมด)
   dark.addEventListener('change', (e) => {
@@ -308,7 +322,7 @@ onMounted(async () => {
 })
 onUnmounted(() => { popup?.remove(); map?.remove() })
 
-watch(() => props.bundle, () => {
+watch(() => [props.bundle, props.level], () => {
   if (!map || !styleReady) return
   for (const id of POINT_SOURCES) (map.getSource(id) as GeoJSONSource | undefined)?.setData(toFC(id))
 })
@@ -336,17 +350,13 @@ watch(() => props.focus, (f) => {
   el.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 })
 
-defineExpose({ fitRegion, fitTo })
+defineExpose({ fitRegion, fitTo, flyToUser })
 </script>
 
 <template>
   <div class="map-wrap">
     <div ref="el" class="map" />
     <div class="map-top">
-      <div class="map-region">
-        <button class="chip" :aria-pressed="region === 'bkk'" @click="fitRegion('bkk')">กทม.</button>
-        <button class="chip" :aria-pressed="region === 'th'" @click="fitRegion('th')">ทั้งประเทศ</button>
-      </div>
       <div v-if="gistdaOn" class="map-period" role="group" aria-label="ช่วงเวลาภาพดาวเทียม">
         <span class="small period-label">🛰️ ดาวเทียม</span>
         <button v-for="p in GISTDA_PERIODS" :key="p.id" class="chip chip-sm" :aria-pressed="gistdaPeriod === p.id" @click="gistdaPeriod = p.id">{{ p.label }}</button>
@@ -363,17 +373,17 @@ defineExpose({ fitRegion, fitTo })
 </template>
 
 <style scoped>
-.map-wrap { position: relative; width: 100%; max-width: 100%; height: 58vh; min-height: 340px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); scroll-margin-top: 66px; /* scrollIntoView ตอนแตะรายการ ต้องไม่ให้ header ที่ sticky ทับขอบบนของแผนที่/popup */ }
-@media (min-width: 960px) { .map-wrap { height: calc(100vh - 220px); min-height: 480px; } }
+.map-wrap { position: relative; width: 100%; max-width: 100%; height: 56vh; min-height: 340px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); scroll-margin-top: 66px; /* scrollIntoView ตอนแตะรายการ ต้องไม่ให้ header ที่ sticky ทับขอบบนของแผนที่/popup */ }
+@media (min-width: 960px) { .map-wrap { height: calc(100vh - 230px); min-height: 480px; } }
 .map { position: absolute; inset: 0; scroll-margin-top: 80px; } /* scrollIntoView เรียกบน .map (ref el) — เผื่อ header sticky 56px + ขอบ */
-.map-top { position: absolute; top: 10px; left: 10px; right: 56px; display: grid; gap: 6px; z-index: 1; pointer-events: none; }
+.map-top { position: absolute; top: 10px; left: 10px; right: 10px; display: grid; gap: 6px; z-index: 1; pointer-events: none; }
 .map-top > * { pointer-events: auto; }
-.map-region { display: flex; gap: 6px; }
-.map-region .chip { box-shadow: var(--shadow); }
 .map-period { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
 .period-label { background: var(--card); padding: 4px 8px; border-radius: 999px; box-shadow: var(--shadow); }
 .chip-sm { min-height: 30px; padding: 4px 10px; font-size: 13px; box-shadow: var(--shadow); }
-.legend { position: absolute; left: 10px; bottom: 28px; padding: 8px 10px; z-index: 1; display: grid; gap: 4px; box-shadow: var(--shadow); }
+.legend { position: absolute; left: 10px; bottom: 30px; padding: 8px 10px; z-index: 1; display: grid; gap: 4px; box-shadow: var(--shadow); }
 .legend-row { display: flex; align-items: center; gap: 6px; }
+/* มือถือ: legend เป็นแถวเดียวพับบรรทัด ไม่บังแผนที่/ปุ่มซูม */
+@media (max-width: 640px) { .legend { display: flex; flex-wrap: wrap; gap: 3px 10px; right: 60px; bottom: 58px; padding: 6px 8px; font-size: 12px; } }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(34, 76, 169, 0.75); border: 1px solid #224ca9; flex: none; }
 </style>

@@ -26,7 +26,11 @@ useHead({
 <template>
   <div class="area">
     <nav class="crumbs small muted"><NuxtLink to="/">หน้าแรก</NuxtLink> › <NuxtLink to="/province/">รายจังหวัด</NuxtLink> › {{ area.th }}</nav>
-    <h1>น้ำท่วม{{ area.th }} วันนี้</h1>
+
+    <FloodDashboard :province="area.th" />
+
+    <section class="card about">
+    <h2>เกี่ยวกับข้อมูลจังหวัด{{ area.th }}</h2>
     <p class="muted small">
       ระดับน้ำ ฝนสะสม 24 ชั่วโมง และพื้นที่น้ำท่วมจากดาวเทียมในจังหวัด{{ area.th }} ({{ area.en }}) จากคลังข้อมูลน้ำแห่งชาติ (สสน.) และ GISTDA — อัปเดตทุก 10 นาที
       รายการด้านล่างกรองเฉพาะจังหวัดนี้ให้แล้ว (เลือกอำเภอเพิ่มได้) · เปิดชั้น "ดาวเทียม GISTDA" บนแผนที่เพื่อดูพื้นที่ที่น้ำท่วมจริง
@@ -34,8 +38,7 @@ useHead({
     <p v-if="st.stations.length" class="small muted">
       สถานีวัดระดับน้ำใน{{ area.th }} ({{ st.stations.length }} แห่ง): {{ st.stations.join(' · ') }}<template v-if="st.districts.length"> — ครอบคลุมอำเภอ {{ st.districts.join(', ') }}</template>
     </p>
-
-    <FloodDashboard :province="area.th" />
+    </section>
 
     <section class="areas card">
       <h2>จังหวัดอื่น</h2>
@@ -50,7 +53,8 @@ useHead({
 <style scoped>
 .area { display: grid; gap: 10px; }
 .area > * { min-width: 0; }
-h1 { font-size: 20px; margin: 0; }
+.about { display: grid; gap: 6px; }
+.about h2 { font-size: 17px; margin: 0; }
 .area p { margin: 0; }
 .areas h2 { font-size: 16px; margin: 0 0 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }

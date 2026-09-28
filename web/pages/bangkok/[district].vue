@@ -26,7 +26,11 @@ useHead({
 <template>
   <div class="area">
     <nav class="crumbs small muted"><NuxtLink to="/">หน้าแรก</NuxtLink> › <NuxtLink to="/bangkok/">กทม. รายเขต</NuxtLink> › เขต{{ area.th }}</nav>
-    <h1>น้ำท่วมเขต{{ area.th }} วันนี้</h1>
+
+    <FloodDashboard :province="BANGKOK_TH" :district="area.th" />
+
+    <section class="card about">
+    <h2>เกี่ยวกับข้อมูลเขต{{ area.th }}</h2>
     <p class="muted small">
       แผนที่และรายการจุดน้ำท่วมในเขต{{ area.th }} กรุงเทพมหานคร ({{ area.en }}) รวมจากข้อมูลทางการ: เซนเซอร์วัดระดับน้ำบนถนนของสำนักการระบายน้ำ กทม.,
       เรื่องร้องเรียนน้ำท่วมจากประชาชนผ่าน Traffy Fondue และพื้นที่น้ำท่วมจากดาวเทียม GISTDA — อัปเดตทุก 10 นาที
@@ -35,8 +39,7 @@ useHead({
     <p v-if="st.sensors.length" class="small muted">
       จุดวัดน้ำท่วมถนนของ กทม. ในเขต{{ area.th }} ({{ st.sensors.length }} จุด): {{ st.sensors.join(' · ') }}
     </p>
-
-    <FloodDashboard :province="BANGKOK_TH" :district="area.th" />
+    </section>
 
     <section class="areas card">
       <h2>เขตอื่นใน กทม.</h2>
@@ -50,7 +53,8 @@ useHead({
 <style scoped>
 .area { display: grid; gap: 10px; }
 .area > * { min-width: 0; }
-h1 { font-size: 20px; margin: 0; }
+.about { display: grid; gap: 6px; }
+.about h2 { font-size: 17px; margin: 0; }
 .area p { margin: 0; }
 .areas h2 { font-size: 16px; margin: 0 0 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }

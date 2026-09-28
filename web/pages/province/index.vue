@@ -16,7 +16,6 @@ useHead({
 <template>
   <div class="idx">
     <nav class="small muted"><NuxtLink to="/">หน้าแรก</NuxtLink> › รายจังหวัด</nav>
-    <h1>น้ำท่วมวันนี้ — เลือกดูรายจังหวัด</h1>
     <p class="muted small">แต่ละหน้าแสดงระดับน้ำ ฝน และพื้นที่น้ำท่วมจากดาวเทียมเฉพาะจังหวัดนั้น · กรุงเทพฯ มีหน้า<NuxtLink to="/bangkok/">รายเขต 50 เขต</NuxtLink>แยกต่างหาก</p>
     <ul class="list">
       <li>
@@ -34,7 +33,6 @@ useHead({
 
 <style scoped>
 .idx { display: grid; gap: 10px; }
-h1 { font-size: 20px; margin: 0; }
 .idx p { margin: 0; }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .item { display: grid; gap: 2px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--text); }

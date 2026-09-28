@@ -16,7 +16,6 @@ useHead({
 <template>
   <div class="idx">
     <nav class="small muted"><NuxtLink to="/">หน้าแรก</NuxtLink> › กทม. รายเขต</nav>
-    <h1>น้ำท่วมกรุงเทพฯ วันนี้ — เลือกดูรายเขต</h1>
     <p class="muted small">ทั้ง 50 เขต แต่ละหน้าแสดงแผนที่และรายการจุดน้ำท่วมเฉพาะเขตนั้น พร้อมรายชื่อจุดวัดน้ำท่วมถนนของสำนักการระบายน้ำ</p>
     <ul class="list">
       <li v-for="a in BANGKOK_DISTRICTS" :key="a.slug">
@@ -32,7 +31,6 @@ useHead({
 
 <style scoped>
 .idx { display: grid; gap: 10px; }
-h1 { font-size: 20px; margin: 0; }
 .idx p { margin: 0; }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .item { display: grid; gap: 2px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--text); }

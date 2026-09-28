@@ -26,8 +26,10 @@ useHead({
 
 <template>
   <div class="en">
-    <section class="intro">
-      <h1>Bangkok Flood Map — live flooded roads, water levels and satellite flood extent</h1>
+    <FloodDashboard />
+
+    <section class="intro card">
+      <h2>About this map</h2>
       <p class="muted small">
         This page combines official Thai flood data on one map, refreshed automatically every 10 minutes:
         <b>street flood sensors</b> from the Bangkok Metropolitan Administration (water depth in cm on major roads),
@@ -43,8 +45,6 @@ useHead({
       </p>
     </section>
 
-    <FloodDashboard />
-
     <p class="small"><NuxtLink to="/">ภาษาไทย (Thai version)</NuxtLink> · <NuxtLink to="/links/">Hotlines &amp; official links</NuxtLink></p>
   </div>
 </template>
@@ -52,6 +52,6 @@ useHead({
 <style scoped>
 .en { display: grid; gap: 10px; }
 .en > * { min-width: 0; }
-.intro h1 { font-size: 20px; margin: 4px 0 2px; }
+.intro h2 { font-size: 17px; margin: 0 0 6px; }
 .intro p { margin: 0 0 6px; }
 </style>

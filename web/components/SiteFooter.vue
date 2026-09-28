@@ -23,6 +23,6 @@ const consentOpen = useState('cookie-consent-open', () => false)
 </template>
 
 <style scoped>
-footer { padding: 16px 12px calc(80px + env(safe-area-inset-bottom)); }
+footer { padding: 16px 12px calc(140px + env(safe-area-inset-bottom)); }
 .linklike { background: none; border: 0; padding: 0; color: var(--brand); text-decoration: underline; cursor: pointer; font-size: inherit; }
 </style>
