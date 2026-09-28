@@ -42,6 +42,15 @@ const districts = computed(() => countBy(active.value.filter((f) => !province.va
 watch(province, () => { district.value = ''; limit.value = PAGE })
 watch([district, q], () => { limit.value = PAGE })
 
+// ปุ่ม "ล้างตัวกรอง" — แสดงเมื่อมีตัวกรองใดๆ (รวมค่าเริ่มต้นจากหน้ารายเขต/จังหวัด) กดแล้วกลับเป็นทุกจังหวัด/ทุกเขต/ไม่ค้นหา
+const hasFilter = computed(() => !!(province.value || district.value || q.value.trim()))
+function clearFilters() {
+  province.value = ''
+  district.value = ''
+  q.value = ''
+  limit.value = PAGE
+}
+
 const filtered = computed(() => {
   const needle = q.value.trim().toLowerCase()
   return active.value.filter((f) => {
@@ -81,14 +90,20 @@ function countBy(list: FloodFeature[], key: (f: FloodFeature) => string | null) 
         <option value="">ทุกเขต/อำเภอ</option>
         <option v-for="[d, n] in districts" :key="d" :value="d">{{ d }} ({{ fmtInt(n) }})</option>
       </select>
-      <input v-model="q" type="search" placeholder="ค้นหาชื่อถนน / สถานี / เขต" aria-label="ค้นหา">
+      <div class="search">
+        <input v-model="q" type="search" placeholder="ค้นหาชื่อถนน / สถานี / เขต" aria-label="ค้นหา">
+        <button v-if="hasFilter" type="button" class="btn btn-clear" title="แสดงทุกจังหวัด ทุกเขต และล้างคำค้นหา" @click="clearFilters">✕ ล้างตัวกรอง</button>
+      </div>
     </div>
     <div class="summary small">
       <span v-for="lv in (['critical', 'warning', 'watch'] as const)" :key="lv"><span class="dot" :class="`dot-${lv}`" /> {{ LEVEL_LABEL[lv] }} {{ fmtInt(counts[lv]) }}</span>
     </div>
 
     <p v-if="!bundle" class="muted">กำลังโหลดข้อมูล…</p>
-    <p v-else-if="!filtered.length" class="muted">ไม่พบจุดน้ำท่วมตามเงื่อนไขที่เลือก</p>
+    <p v-else-if="!filtered.length" class="muted">
+      ไม่พบจุดน้ำท่วมตามเงื่อนไขที่เลือก
+      <button v-if="hasFilter" type="button" class="link" @click="clearFilters">ล้างตัวกรอง</button>
+    </p>
     <ul v-else class="items">
       <li v-for="f in shown" :key="f.properties.source + f.properties.id">
         <button class="item" @click="emit('focus', f)">
@@ -116,7 +131,10 @@ function countBy(list: FloodFeature[], key: (f: FloodFeature) => string | null) 
 h2 { font-size: 18px; margin: 4px 0 0; }
 .filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .filters select, .filters input { min-width: 0; width: 100%; } /* option ยาวๆ ต้องไม่ดันหน้าให้กว้างเกินจอ */
-.filters input { grid-column: 1 / -1; }
+.search { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; }
+.search input { flex: 1; }
+.btn-clear { flex: none; white-space: nowrap; }
+.link { background: none; border: 0; padding: 0; color: var(--brand); text-decoration: underline; cursor: pointer; font: inherit; }
 .summary { display: flex; gap: 14px; flex-wrap: wrap; }
 .summary .dot { width: 10px; height: 10px; vertical-align: middle; }
 .items { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
