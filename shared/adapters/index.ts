@@ -11,6 +11,8 @@ import { fetchTraffy } from './traffy.ts';
 /** key/secret ที่ adapter บางตัวต้องใช้ — ไม่มี key = ข้ามแหล่งนั้น */
 export interface FetchKeys {
   gistda?: string;
+  /** false = รอบนี้ไม่ยิงหน้า กทม. โดยตรง (ใช้ relay ของ สสน. อย่างเดียว) — ดู scripts/ingest.ts */
+  bmaDirect?: boolean;
 }
 
 export type FetchResult = { features: FloodFeature[]; via?: string | null; collection?: FloodCollection };
@@ -18,7 +20,7 @@ export type FetchResult = { features: FloodFeature[]; via?: string | null; colle
 export const FETCHERS: Record<SourceId, (keys: FetchKeys) => Promise<FetchResult>> = {
   thaiwater_waterlevel: async () => ({ features: await fetchWaterlevel() }),
   thaiwater_rain: async () => ({ features: await fetchRain() }),
-  bma_flood_road: () => fetchBma(),
+  bma_flood_road: ({ bmaDirect }) => fetchBma(bmaDirect !== false),
   traffy_flood: async () => ({ features: await fetchTraffy() }),
   gistda_flood: async ({ gistda }) => {
     if (!gistda) throw new Error('no GISTDA_API_KEY');
@@ -71,8 +73,14 @@ export async function ingestAll(opts: IngestOptions = {}): Promise<IngestOutcome
       return;
     }
     const error = String(r.reason?.message ?? r.reason);
-    failed.push({ id, error });
     const prev = previous?.sources?.[id];
+    if (r.reason?.skip && prev) {
+      // ไม่ได้ลองต้นทางหลักรอบนี้ (เว้นระยะกันโดนบล็อก) → คงชุดเดิมทั้งก้อน ไม่เขียน error ทับ
+      skipped.push(id);
+      log(`– ${id}: ${error} (keeping previous as-is)`);
+      return;
+    }
+    failed.push({ id, error });
     bundle.sources[id] = prev
       ? { ...prev, stale: true, error }
       : makeCollection(id, [], { stale: true, error, fetched_at: new Date(0).toISOString() });

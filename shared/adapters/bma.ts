@@ -116,18 +116,35 @@ export function parseRelay(raw: TwFloodRoadRaw, now = Date.now()): FloodFeature[
   return out;
 }
 
-/** คืนค่า features + เส้นทางที่ได้มา; โยน error ถ้าทั้งสองทางล้มเหลว */
-export async function fetchBma(): Promise<{ features: FloodFeature[]; via: string | null }> {
-  let directError: unknown;
-  try {
-    const html = await (await fetchOk(BMA_FLOOD_PAGE, { headers: { 'user-agent': BROWSER_UA, accept: 'text/html' }, timeoutMs: 25_000 })).text();
-    const features = parseBmaPage(html);
-    if (!features.length) throw new Error('BMA page parsed but no fresh sensors');
-    return { features, via: null };
-  } catch (e) {
-    directError = e;
+/**
+ * รอบนี้ไม่ได้ลองหน้า กทม. (เว้นระยะกันโดนบล็อก) และ relay ก็เก่า → ไม่ใช่ความล้มเหลวใหม่
+ * ingestAll จะคงชุดเดิมไว้ทั้งก้อน (รวม error จริงของรอบที่ลองล่าสุด) แทนที่จะเขียน error ทับ
+ */
+export class SkipRound extends Error {
+  readonly skip = true;
+}
+
+/**
+ * คืนค่า features + เส้นทางที่ได้มา; โยน error ถ้าทั้งสองทางล้มเหลว
+ * direct=false → ข้ามหน้า กทม. ใช้ relay ของ สสน. อย่างเดียว
+ * (ไฟร์วอลล์ของ weather.bangkok.go.th จำกัดครั้งต่อ IP: 28 ก.ย. 2569 IP ไทยได้ 200 ครั้งแรกแล้ว 403 ติดกัน, runner ของ GitHub โดน 403 ตั้งแต่ 16:22 น.)
+ */
+export async function fetchBma(direct = true): Promise<{ features: FloodFeature[]; via: string | null }> {
+  let directError: unknown = 'not tried this round';
+  if (direct) {
+    try {
+      const html = await (await fetchOk(BMA_FLOOD_PAGE, { headers: { 'user-agent': BROWSER_UA, accept: 'text/html' }, timeoutMs: 25_000 })).text();
+      const features = parseBmaPage(html);
+      if (!features.length) throw new Error('BMA page parsed but no fresh sensors');
+      return { features, via: null };
+    } catch (e) {
+      directError = e;
+    }
   }
   const relay = parseRelay(await fetchFloodRoadRelay());
-  if (!relay.length) throw new Error(`BMA direct failed (${String(directError)}) and thaiwater relay is stale`);
+  if (!relay.length) {
+    if (!direct) throw new SkipRound('BMA direct not due this round and thaiwater relay is stale');
+    throw new Error(`BMA direct failed (${String(directError)}) and thaiwater relay is stale`);
+  }
   return { features: relay, via: 'thaiwater_relay' };
 }

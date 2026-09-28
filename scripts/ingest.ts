@@ -32,7 +32,15 @@ try {
 
 const workerUrl = (process.env.WORKER_URL ?? '').replace(/\/$/, '');
 const token = process.env.INGEST_TOKEN ?? '';
-const keys = { gistda: process.env.GISTDA_API_KEY || undefined };
+// หน้า กทม. (weather.bangkok.go.th/flood) มีไฟร์วอลล์จำกัดครั้งต่อ IP → ยิงตรงแค่ทุก BMA_DIRECT_EVERY_MIN นาที (ค่าเริ่มต้น 30)
+// ตัดสินจากนาทีของนาฬิกา: รอบที่เริ่มในช่วงนาที 0–9 และ 30–39 ยิงตรง รอบอื่นใช้ relay ของ สสน. อย่างเดียว
+// (GitHub runner แต่ละรอบได้ IP ใหม่ จึงจำเวลาครั้งก่อนในเครื่องไม่ได้; นาฬิกาให้ผลคงที่โดยไม่ต้องเก็บ state)
+// รันในเครื่องแบบ --out ยิงตรงทุกครั้ง; บังคับได้ด้วย BMA_DIRECT=1 / BMA_DIRECT=0
+const BMA_EVERY_MIN = Math.max(10, Number(process.env.BMA_DIRECT_EVERY_MIN ?? 30));
+const bmaSlot = Math.floor(new Date().getUTCMinutes() / 10) % Math.round(BMA_EVERY_MIN / 10) === 0;
+const bmaDirect = process.env.BMA_DIRECT ? process.env.BMA_DIRECT === '1' : !push || bmaSlot;
+console.log(`BMA direct fetch this round: ${bmaDirect ? 'yes' : `no (every ${BMA_EVERY_MIN} min; relay only)`}`);
+const keys = { gistda: process.env.GISTDA_API_KEY || undefined, bmaDirect };
 
 // ชุดก่อนหน้า: จาก Worker (ถ้า push) หรือไฟล์เดิม (ถ้า out) เพื่อคงข้อมูลแหล่งที่ล้มไว้
 async function loadPrevious(): Promise<FloodBundle | null> {
