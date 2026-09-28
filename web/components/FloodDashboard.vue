@@ -16,10 +16,19 @@ const visible = reactive<Record<SourceId, boolean>>({
   traffy_flood: true,
   gistda_flood: hasGistdaKey,
 })
-const layerIds = computed(() => SOURCE_IDS.filter((id) => id !== 'gistda_flood' || hasGistdaKey))
-// กล้อง CCTV จราจร กทม. (เลเยอร์ static จาก Open Data — ปิดไว้เป็นค่าเริ่มต้น ไม่ให้รกแผนที่น้ำท่วม)
-const cctv = ref(false)
+// ลำดับ chip ตามที่ผู้ใช้ต้องการ: กล้อง CCTV (แยกอยู่หน้าสุด) → Traffy → เซนเซอร์ กทม. → สสน. → ดาวเทียม
+const LAYER_ORDER: SourceId[] = ['traffy_flood', 'bma_flood_road', 'thaiwater_waterlevel', 'thaiwater_rain', 'gistda_flood']
+const layerIds = computed(() => LAYER_ORDER.filter((id) => id !== 'gistda_flood' || hasGistdaKey))
+// กล้อง CCTV จราจร กทม. (เลเยอร์ static จาก Open Data) — เปิดเป็นค่าเริ่มต้น
+const cctv = ref(true)
 const CCTV_PINS = cctvData.count
+
+// ปุ่มล้าง/เลือกแหล่งข้อมูลทั้งหมด (รวมกล้อง) — ล้างแล้วแผนที่และรายการว่าง จนกว่าจะเลือกใหม่
+const anyLayerOn = computed(() => cctv.value || layerIds.value.some((id) => visible[id]))
+function setAllLayers(on: boolean) {
+  cctv.value = on
+  for (const id of layerIds.value) visible[id] = on
+}
 const focus = ref<FloodFeature | null>(null)
 const mapRef = ref<{ fitRegion: (r: 'bkk' | 'th') => void; fitTo: (b: [number, number, number, number]) => void } | null>(null)
 const mapReady = ref(false)
@@ -55,7 +64,15 @@ watch(mapReady, tryFit)
   <div class="dash">
     <SourceStatus :bundle="bundle" :now="now" :error="error" :loading="loading" />
 
-    <div class="layers">
+    <div class="layers" role="group" aria-label="เลือกแหล่งข้อมูลที่แสดง">
+      <button
+        class="chip" :aria-pressed="cctv" title="ตำแหน่งกล้อง CCTV จราจรของ กทม. — แตะหมุดเพื่อไปดูภาพสดที่เว็บ กทม."
+        @click="cctv = !cctv"
+      >
+        <CctvIcon />
+        กล้อง CCTV
+        <span class="small">{{ fmtInt(CCTV_PINS) }} จุด</span>
+      </button>
       <button
         v-for="id in layerIds" :key="id" class="chip" :aria-pressed="visible[id]"
         :title="SOURCE_META[id].name" @click="visible[id] = !visible[id]"
@@ -66,13 +83,10 @@ watch(mapReady, tryFit)
         <span v-else-if="bundle" class="small">{{ fmtInt(abnormal(id)) }}/{{ fmtInt(layerCount(id)) }}</span>
       </button>
       <button
-        class="chip" :aria-pressed="cctv" title="ตำแหน่งกล้อง CCTV จราจรของ กทม. — แตะหมุดเพื่อไปดูภาพสดที่เว็บ กทม."
-        @click="cctv = !cctv"
-      >
-        <CctvIcon />
-        กล้อง CCTV
-        <span class="small">{{ fmtInt(CCTV_PINS) }} จุด</span>
-      </button>
+        v-if="anyLayerOn" class="chip chip-clear" title="ปิดทุกแหล่งข้อมูล (ซ่อนหมุดทั้งหมด)"
+        @click="setAllLayers(false)"
+      >✕ ล้าง</button>
+      <button v-else class="chip" title="เปิดทุกแหล่งข้อมูล" @click="setAllLayers(true)">เลือกทั้งหมด</button>
       <button class="chip" :disabled="loading" title="โหลดข้อมูลใหม่" @click="reload">↻</button>
     </div>
 
@@ -95,6 +109,7 @@ watch(mapReady, tryFit)
 .layers { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .layers::-webkit-scrollbar { display: none; }
 .layers .chip { flex: none; }
+.chip-clear { color: var(--muted); }
 .mark { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; background: var(--watch); }
 .mark-bma_flood_road { border-color: #fff; }
 .mark-thaiwater_waterlevel { border-color: #0d47a1; }

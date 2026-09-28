@@ -105,7 +105,7 @@ function addLayers() {
     layout: {
       visibility: props.cctv ? 'visible' : 'none',
       'icon-image': CCTV_ICON,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.55, 12, 0.8, 15, 1] as never,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 0.8, 15, 1.05] as never,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },

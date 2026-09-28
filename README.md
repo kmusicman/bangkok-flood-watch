@@ -90,7 +90,7 @@ curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://bangkokflood.com/a
 
 ## เลเยอร์กล้อง CCTV จราจร กทม. (static)
 - ที่มา: Open Data กทม. `data.bangkok.go.th/dataset/bma-cctv` (CSV 238 กล้อง มีพิกัด; อัปเดตล่าสุด มิ.ย. 2567, ไม่ระบุ license) → `npm run build:cctv` เขียน `web/data/cctv-bma.json` (185 หมุด — กล้องหลายตัวบนเสาเดียวรวมเป็นหมุดเดียว) แล้ว commit ไฟล์ — ฝังใน build ไม่ผ่าน Worker/KV
-- แสดงเป็นหมุดเทาเล็กใต้หมุดน้ำท่วม ปิดเป็นค่าเริ่มต้น (chip "กล้อง CCTV") popup มีปุ่มไปดูภาพสดที่ `cpudapp.bangkok.go.th/bmatraffic`
+- แสดงเป็นไอคอนกล้องวงจรปิด (ป้ายวงกลมขาว `web/utils/cctvIcon.ts`) ใต้หมุดน้ำท่วม เปิดเป็นค่าเริ่มต้น chip อยู่หน้าสุดตามด้วย Traffy; ปุ่ม "✕ ล้าง / เลือกทั้งหมด" ปิด-เปิดทุกแหล่งพร้อมกัน popup มีปุ่มไปดูภาพสดที่ `cpudapp.bangkok.go.th/bmatraffic`
 - **ไม่ดึงภาพ/สตรีม** จาก bmatraffic มาแสดง (เงื่อนไขการใช้งานของ กทม. — CLAUDE.md ข้อ 3.2) และ CSV ไม่มีรหัสที่จับคู่กับหน้ากล้องรายตัวได้ จึงลิงก์ไปหน้ารวม; ArcGIS ของ กทม. (`cpudgiportal`) ไม่มีเลเยอร์ CCTV (ตรวจ 28 ก.ย. 2569)
 
 ## ทดสอบกรณีแหล่งข้อมูลล่ม
