@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // รายการจุดน้ำท่วม (ใช้ในแท็บ "รายการ", "ใกล้ฉัน" และ 5 อันดับในภาพรวม) — ตัวกรองอยู่ที่แถวเครื่องมือ (FloodDashboard)
 import { fmtInt, fmtTime, fmtValue, LEVEL_LABEL, relTime, SOURCE_META, type FloodFeature } from '../utils/format'
+import { DDS_BY_SENSOR } from '../utils/cctvDds'
 
 const props = withDefaults(defineProps<{
   items: FloodFeature[]
@@ -33,7 +34,11 @@ const km = (f: FloodFeature) => {
         <button class="item" @click="emit('focus', f)">
           <span class="dot" :class="`dot-${f.properties.level}`" :title="LEVEL_LABEL[f.properties.level]" />
           <span class="body">
-            <span class="title">{{ f.properties.name }} <span v-if="f.properties.photo" class="cam" title="มีรูปจากผู้แจ้ง">📷</span></span>
+            <span class="title">
+              {{ f.properties.name }}
+              <span v-if="f.properties.photo" class="cam" title="มีรูปจากผู้แจ้ง">📷</span>
+              <span v-else-if="f.properties.source === 'bma_flood_road' && DDS_BY_SENSOR.has(f.properties.id)" class="cam" title="มีภาพจากกล้องที่จุดวัด">📹</span>
+            </span>
             <span v-if="f.properties.detail" class="detail muted small">{{ f.properties.detail }}</span>
             <span class="meta muted small">
               <b v-if="distances" class="km">{{ km(f) }}</b>

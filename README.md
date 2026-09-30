@@ -100,6 +100,14 @@ curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://bangkokflood.com/a
 - แสดงเป็นไอคอนกล้องวงจรปิด (ป้ายวงกลมขาว `web/utils/cctvIcon.ts`) ใต้หมุดน้ำท่วม เปิดเป็นค่าเริ่มต้น chip อยู่หน้าสุดตามด้วย Traffy; ปุ่ม "✕ ล้าง / เลือกทั้งหมด" ปิด-เปิดทุกแหล่งพร้อมกัน popup มีปุ่มหลักไป **Longdo Traffic** เปิดตรงพิกัดกล้อง (`traffic.longdo.com/main/?lat=&lon=&zoom=16` — ตรวจแล้วว่า center ตามพารามิเตอร์) และลิงก์รองไป `bmatraffic.com` (เว็บ กทม. ล่มบ่อย: 28 ก.ย. 2569 ทั้ง bmatraffic.com และ cpudapp 502)
 - **ไม่ดึงภาพ/สตรีม** จาก bmatraffic มาแสดง (เงื่อนไขการใช้งานของ กทม. — CLAUDE.md ข้อ 3.2) และ CSV ไม่มีรหัสที่จับคู่กับหน้ากล้องรายตัวได้ จึงลิงก์ไปหน้ารวม; ArcGIS ของ กทม. (`cpudgiportal`) ไม่มีเลเยอร์ CCTV (ตรวจ 28 ก.ย. 2569)
 
+## กล้องที่จุดวัดน้ำท่วมถนน กทม. (มีภาพนิ่ง)
+- ที่มา (แกะจากหน้า `floodbangkok.bangkok.go.th/device-info` 30 ก.ย. 2569 — เว็บ POPNIX Flood ใช้ต้นทางเดียวกัน): รายการกล้อง `…/bkk/dds/services/api/floods/v1/items/camera_profile?limit=-1` (876 ตัว, `SensorName` = รหัสเซนเซอร์ FL.xxx.nn ตรงกับ id หมุด "น้ำท่วมถนน กทม." ของเรา), ภาพนิ่ง `https://floodbangkok.bangkok.go.th/api/proxy?rtcUrl=<LiveStream>` → JPEG 1280×720/1920×1080 (5–10 วินาที/ภาพ, proxy ใช้ ffmpeg ตัดเฟรม; โฮสต์สตรีม `*.larry-cctv.com` ไม่มีใน DNS สาธารณะ)
+- **ผ่าน Worker ไม่ได้**: floodbangkok ตอบ 403 ทุกคำขอจาก Cloudflare Worker (ลองทั้ง UA บอทและ header เบราว์เซอร์เต็มชุด) แต่ตอบ 200 ให้ IP ไทย รวมถึงคำขอที่ Referer เป็น bangkokflood.com → เบราว์เซอร์ผู้ใช้ขอภาพเอง **เฉพาะตอนแตะปุ่ม** (ไม่ preload ไม่ auto-refresh) — เป็นข้อยกเว้นของหลัก "ผู้ใช้ไม่ยิงแหล่งทางการตรง" ที่ผู้ใช้ต้องรับรู้
+- proxy ของ กทม. รับโหลดได้น้อย: ยิงพร้อมกัน 12 แล้วเริ่มตอบ 500 "ffmpeg capture failed" → สคริปต์เช็คทีละ 3 + พัก 1 วิ
+- `npm run build:cctv-dds` (= `scripts/build-cctv-dds.ts`) ดึงรายการ + เช็คกล้องละ 1 ครั้ง (ราว 45–60 นาที) → `web/data/cctv-dds.json` (จุดที่มีกล้องส่งภาพได้ + LiveStream ของแต่ละกล้อง) แล้ว commit + deploy — รันด้วยมือเป็นครั้งคราว
+- หน้าเว็บ: เลเยอร์ "กล้องจุดน้ำท่วม" (ป้ายสีแบรนด์) + ปุ่มดูภาพใน popup ของเซนเซอร์น้ำท่วมถนนที่รหัสตรงกัน (📹 ในรายการ)
+- ไม่ใช้: กล้องจราจร bmatraffic (ล่ม + CLAUDE.md ห้าม embed), กล้อง iTIC/กรมทางหลวง (`traffic.longdo.com/camera.json` 256 ตัว แต่ภาพนิ่ง `jpeg2.php` ตอบภาพว่าง มีแต่ HLS ต้องมีเซิร์ฟเวอร์ตัดเฟรม)
+
 ## ทดสอบกรณีแหล่งข้อมูลล่ม
 - `ingestAll` ใช้ `Promise.allSettled` — แหล่งที่ล้มจะคงชุดเดิมจาก KV + `stale: true, error`
 - ป้าย "ไม่เป็นปัจจุบัน" (fetched_at เก่ากว่า 30 นาที / GISTDA 24 ชม.) คำนวณฝั่งหน้าเว็บ (`SourceStatus.vue`) — Worker ไม่แตะเนื้อหา bundle
