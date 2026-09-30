@@ -15,10 +15,9 @@ const visible = reactive<Record<SourceId, boolean>>({
 })
 const LAYER_ORDER: SourceId[] = ['traffy_flood', 'bma_flood_road', 'thaiwater_waterlevel', 'thaiwater_rain', 'gistda_flood']
 const layerIds = computed(() => LAYER_ORDER.filter((id) => id !== 'gistda_flood' || hasGistdaKey))
-const cctv = ref(true)
 const cctvDds = ref(true) // กล้องที่จุดวัดน้ำท่วม (มีภาพ)
 const layersOpen = ref(false)
-const layersOn = computed(() => (cctv.value ? 1 : 0) + (cctvDds.value ? 1 : 0) + layerIds.value.filter((id) => visible[id]).length)
+const layersOn = computed(() => (cctvDds.value ? 1 : 0) + layerIds.value.filter((id) => visible[id]).length)
 
 // ---- ตัวกรอง (แถวเครื่องมือ) ----
 const filters = {
@@ -106,7 +105,7 @@ watch(mapReady, tryFit)
       <button v-if="hasFilter" type="button" class="btn clear-btn" title="แสดงทุกจังหวัด ทุกเขต ทุกระดับ และล้างคำค้นหา" @click="clearFilters">✕ ล้างตัวกรอง</button>
     </div>
     <div v-if="layersOpen" class="card layers-panel">
-      <LayerPicker v-model:visible="visible" v-model:cctv="cctv" v-model:cctv-dds="cctvDds" :bundle="bundle" :layer-ids="layerIds" :loading="loading" @reload="reload" />
+      <LayerPicker v-model:visible="visible" v-model:cctv-dds="cctvDds" :bundle="bundle" :layer-ids="layerIds" :loading="loading" @reload="reload" />
     </div>
     <div v-if="filters.level.value" class="lvchip small">
       กรองเฉพาะ <b>{{ LEVEL_LABEL[filters.level.value] }}</b>
@@ -115,7 +114,7 @@ watch(mapReady, tryFit)
 
     <div class="work">
       <ClientOnly>
-        <FloodMap ref="mapRef" :bundle="bundle" :visible="visible" :cctv="cctv" :cctv-dds="cctvDds" :level="filters.level.value" :focus="focus" :now="now" @ready="mapReady = true" />
+        <FloodMap ref="mapRef" :bundle="bundle" :visible="visible" :cctv-dds="cctvDds" :level="filters.level.value" :focus="focus" :now="now" @ready="mapReady = true" />
         <template #fallback>
           <div class="map-fallback card muted">กำลังโหลดแผนที่…</div>
         </template>

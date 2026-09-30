@@ -1,22 +1,18 @@
 <script setup lang="ts">
 // "ชั้นข้อมูล" — เลือกแหล่งข้อมูลที่แสดง (chip) + ล้าง/เลือกทั้งหมด + โหลดใหม่ ใช้ในเมนูแบบเปิด-ปิดจากแถวเครื่องมือ
 import { fmtInt, SOURCE_META, type FloodBundle, type SourceId } from '../utils/format'
-import cctvData from '../data/cctv-bma.json'
 import { DDS } from '../utils/cctvDds'
 
 const props = defineProps<{ bundle: FloodBundle | null; layerIds: SourceId[]; loading: boolean }>()
 const visible = defineModel<Record<SourceId, boolean>>('visible', { required: true })
-const cctv = defineModel<boolean>('cctv', { required: true })
 const cctvDds = defineModel<boolean>('cctvDds', { required: true })
 const emit = defineEmits<{ reload: [] }>()
 
-const CCTV_PINS = cctvData.count
 const DDS_PINS = DDS.count
 const layerCount = (id: SourceId) => props.bundle?.sources[id]?.count ?? 0
 const abnormal = (id: SourceId) => props.bundle?.sources[id]?.features.filter((f) => f.properties.level !== 'normal').length ?? 0
-const anyOn = computed(() => cctv.value || cctvDds.value || props.layerIds.some((id) => visible.value[id]))
+const anyOn = computed(() => cctvDds.value || props.layerIds.some((id) => visible.value[id]))
 function setAll(on: boolean) {
-  cctv.value = on
   cctvDds.value = on
   for (const id of props.layerIds) visible.value[id] = on
 }
@@ -26,9 +22,6 @@ function setAll(on: boolean) {
   <div class="picker" role="group" aria-label="เลือกแหล่งข้อมูลที่แสดง">
     <button class="chip" :aria-pressed="cctvDds" title="กล้องที่จุดวัดน้ำท่วมถนนของสำนักการระบายน้ำ กทม. — แตะหมุดเพื่อดูภาพนิ่งล่าสุด" @click="cctvDds = !cctvDds">
       <CctvIcon kind="flood" /> กล้องจุดน้ำท่วม <span class="small">{{ fmtInt(DDS_PINS) }} จุด</span>
-    </button>
-    <button class="chip" :aria-pressed="cctv" title="ตำแหน่งกล้อง CCTV จราจรของ กทม. — แตะหมุดเพื่อไปดูภาพสดที่เว็บ กทม." @click="cctv = !cctv">
-      <CctvIcon /> กล้อง CCTV <span class="small">{{ fmtInt(CCTV_PINS) }} จุด</span>
     </button>
     <button
       v-for="id in layerIds" :key="id" class="chip" :aria-pressed="visible[id]"

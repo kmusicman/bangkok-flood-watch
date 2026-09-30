@@ -10,8 +10,6 @@ import {
   type FloodBundle, type FloodFeature, type FloodProps, type Level, type SourceId,
 } from '../utils/format'
 
-// เลเยอร์ static: ตำแหน่งกล้อง CCTV จราจร กทม. (Open Data กทม. — สร้างด้วย scripts/build-cctv.ts) หมุด + ลิงก์ออกเท่านั้น ไม่ดึงภาพ
-import cctvData from '../data/cctv-bma.json'
 import { loadCctvImage } from '../utils/cctvIcon'
 // กล้องที่จุดวัดน้ำท่วม กทม. (มีภาพนิ่งผ่าน Worker) — แสดงเป็นเลเยอร์แยก และในป๊อปอัปของเซนเซอร์น้ำท่วมถนนที่ตรงรหัส
 import { DDS_BY_SENSOR, DDS_FC, ddsCameraBlock, ddsDeviceUrl, type DdsSensor } from '../utils/cctvDds'
@@ -19,7 +17,6 @@ import { DDS_BY_SENSOR, DDS_FC, ddsCameraBlock, ddsDeviceUrl, type DdsSensor } f
 const props = defineProps<{
   bundle: FloodBundle | null
   visible: Record<SourceId, boolean>
-  cctv: boolean
   /** กล้องที่จุดวัดน้ำท่วม กทม. */
   cctvDds: boolean
   /** กรองหมุดเฉพาะระดับนี้ ('' = ทุกระดับ) — จากการ์ดนับสถานะ */
@@ -59,17 +56,9 @@ const GISTDA_PERIODS: { id: GistdaPeriod; label: string; path: string }[] = [
 ]
 const GISTDA_LAYER = 'gistda-raster'
 // id ห้ามลงท้าย -pt/-cluster (onClickPoint/syncGistdaLayer แยกเลเยอร์จุดน้ำท่วมด้วย suffix นั้น)
-const CCTV_LAYER = 'cctv-cam'
-const CCTV_ICON = 'cctv-icon'
-let cctvImg: HTMLImageElement | undefined
-const DDS_LAYER = 'cctv-dds' // ห้ามลงท้าย -pt/-cluster เหมือน CCTV_LAYER
+const DDS_LAYER = 'cctv-dds'
 const DDS_ICON = 'cctv-dds-icon'
 let ddsImg: HTMLImageElement | undefined
-// หน้าดูภาพสดของ กทม. (มีเงื่อนไขการใช้งาน จึงลิงก์ออกอย่างเดียว) — ล่มบ่อย: 28 ก.ย. 2569 ทั้ง bmatraffic.com และ cpudapp.bangkok.go.th/bmatraffic เปิดไม่ได้ (502)
-// จึงให้ลิงก์หลักเป็น Longdo Traffic ซึ่งรวมกล้อง กทม. ไว้และรับ ?lat=&lon=&zoom= เพื่อเปิดตรงตำแหน่งกล้องนั้น (ตรวจแล้ว)
-const CCTV_BMA_URL = 'http://www.bmatraffic.com/'
-const cctvLongdoUrl = (lngLat: [number, number]) => `https://traffic.longdo.com/main/?lat=${lngLat[1].toFixed(5)}&lon=${lngLat[0].toFixed(5)}&zoom=16`
-interface CctvProps { id: string; name: string; district: string; cameras: number }
 const gistdaKey = String(useRuntimeConfig().public.gistdaKey ?? '')
 const gistdaPeriod = ref<GistdaPeriod>('3days')
 const gistdaOn = computed(() => !!gistdaKey && props.visible.gistda_flood)
@@ -102,8 +91,8 @@ function syncGistdaLayer() {
     maxzoom: 15,
     attribution: '© GISTDA Disaster Platform',
   })
-  // วางใต้เลเยอร์จุดทั้งหมด (รวมกล้อง CCTV)
-  const firstPoint = map.getStyle().layers.find((l) => l.id === CCTV_LAYER || l.id === DDS_LAYER || l.id.endsWith('-pt') || l.id.endsWith('-cluster'))?.id
+  // วางใต้เลเยอร์จุดทั้งหมด (รวมกล้องจุดน้ำท่วม)
+  const firstPoint = map.getStyle().layers.find((l) => l.id === DDS_LAYER || l.id.endsWith('-pt') || l.id.endsWith('-cluster'))?.id
   map.addLayer({ id: GISTDA_LAYER, type: 'raster', source: GISTDA_LAYER, paint: { 'raster-opacity': 0.75 } }, firstPoint)
 }
 
@@ -111,30 +100,7 @@ function addLayers() {
   if (!map) return
   const levelColor = ['match', ['get', 'level'], 'critical', LEVEL_COLOR.critical, 'warning', LEVEL_COLOR.warning, 'watch', LEVEL_COLOR.watch, LEVEL_COLOR.normal]
   const levelRank = ['match', ['get', 'level'], 'critical', 3, 'warning', 2, 'watch', 1, 0]
-  // กล้อง CCTV: เพิ่มก่อนเลเยอร์น้ำท่วมเพื่อให้อยู่ใต้หมุดน้ำท่วมเสมอ (หมุดเทาเล็ก ไม่แย่งความสนใจ)
-  if (!map.getSource(CCTV_LAYER)) map.addSource(CCTV_LAYER, { type: 'geojson', data: cctvData as GeoJSON.FeatureCollection })
-  // setStyle ล้างรูปด้วย → ใส่รูปไอคอนใหม่ทุกครั้งที่สร้างเลเยอร์ (รูปโหลดไว้แล้วตอน mount)
-  if (cctvImg && !map.hasImage(CCTV_ICON)) map.addImage(CCTV_ICON, cctvImg, { pixelRatio: 2 })
-  map.addLayer({
-    id: CCTV_LAYER, type: 'symbol', source: CCTV_LAYER,
-    layout: {
-      visibility: props.cctv ? 'visible' : 'none',
-      'icon-image': CCTV_ICON,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 0.8, 15, 1.05] as never,
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
-    },
-  })
-  map.on('click', CCTV_LAYER, (e: MapMouseEvent) => {
-    // ถ้ามีหมุดน้ำท่วมซ้อนอยู่ ให้ onClickPoint จัดการแทน
-    if (map!.queryRenderedFeatures(e.point).some((x) => x.layer.id.endsWith('-pt'))) return
-    const f = map!.queryRenderedFeatures(e.point, { layers: [CCTV_LAYER] })[0]
-    if (f) openCctvPopup((f.geometry as GeoJSON.Point).coordinates as [number, number], f.properties as unknown as CctvProps)
-  })
-  map.on('mouseenter', CCTV_LAYER, () => { map!.getCanvas().style.cursor = 'pointer' })
-  map.on('mouseleave', CCTV_LAYER, () => { map!.getCanvas().style.cursor = '' })
-
-  // กล้องที่จุดวัดน้ำท่วม: ป้ายสีแบรนด์ อยู่เหนือกล้องจราจรแต่ใต้หมุดน้ำท่วม
+  // กล้องที่จุดวัดน้ำท่วม: ป้ายสีแบรนด์ เพิ่มก่อนเลเยอร์น้ำท่วมเพื่อให้อยู่ใต้หมุดน้ำท่วมเสมอ
   if (!map.getSource(DDS_LAYER)) map.addSource(DDS_LAYER, { type: 'geojson', data: DDS_FC })
   if (ddsImg && !map.hasImage(DDS_ICON)) map.addImage(DDS_ICON, ddsImg, { pixelRatio: 2 })
   map.addLayer({
@@ -303,38 +269,6 @@ function openDdsPopup(s: DdsSensor) {
   requestAnimationFrame(ensurePopupVisible)
 }
 
-/** popup กล้อง CCTV: ชื่อจุด + จำนวนกล้อง + ปุ่มไปดูภาพสดที่เว็บ กทม. (ไม่ฝังภาพ) */
-function openCctvPopup(lngLat: [number, number], p: CctvProps) {
-  if (!map || !ml) return
-  const box = document.createElement('div')
-  const add = (tag: string, text: string, cls?: string) => {
-    const n = document.createElement(tag)
-    n.textContent = text
-    if (cls) n.className = cls
-    box.appendChild(n)
-    return n
-  }
-  add('div', `📷 ${p.name}`, 'popup-title')
-  add('div', `กล้อง CCTV จราจร กทม.${p.cameras > 1 ? ` · ${p.cameras} ตัว` : ''}`, 'popup-value')
-  add('div', `เขต${p.district} · รหัส ${p.id}`, 'muted small')
-  add('div', 'ตำแหน่งจาก Open Data กทม. — เป็นกล้องจราจร ไม่ใช่เซนเซอร์วัดน้ำท่วม', 'muted small')
-  const link = (href: string, text: string, cls: string) => {
-    const a = document.createElement('a')
-    a.href = href
-    a.target = '_blank'
-    a.rel = 'noopener'
-    a.textContent = text
-    a.className = cls
-    box.appendChild(a)
-  }
-  link(cctvLongdoUrl(lngLat), '📺 ดูภาพสดบริเวณนี้ผ่าน Longdo Traffic ↗', 'btn btn-primary btn-block popup-btn')
-  add('div', 'ในหน้า Longdo กด "ชั้นข้อมูล" แล้วเปิดกล้อง CCTV', 'muted small')
-  link(CCTV_BMA_URL, 'เว็บ CCTV ของ กทม. (bmatraffic.com) ↗ — ล่มบ่อย', 'small')
-  popup?.remove()
-  popup = new ml.Popup({ maxWidth: '300px' }).setLngLat(lngLat).setDOMContent(box).addTo(map)
-  requestAnimationFrame(ensurePopupVisible)
-}
-
 /** ถ้า popup ล้นขอบแผนที่ (จอเตี้ย/รูปสูง) ให้เลื่อนแผนที่ตามจนเห็นครบ — ขอบบนสำคัญสุดเพราะรูปอยู่บนสุด */
 function ensurePopupVisible() {
   const el = popup?.getElement()
@@ -376,7 +310,7 @@ onMounted(async () => {
   ml = await import('maplibre-gl')
   ml.setWorkerUrl(maplibreWorkerUrl)
   // ถ้าโหลดไอคอนไม่ได้ เลเยอร์กล้องจะไม่แสดง แต่แผนที่ยังทำงาน
-  ;[cctvImg, ddsImg] = await Promise.all([loadCctvImage('traffic').catch(() => undefined), loadCctvImage('flood').catch(() => undefined)])
+  ddsImg = await loadCctvImage('flood').catch(() => undefined)
   map = new ml.Map({
     container: el.value!,
     style: dark.matches ? STYLE_DARK : STYLE_LIGHT,
@@ -414,10 +348,6 @@ watch(gistdaPeriod, syncGistdaLayer)
 watch(() => props.cctvDds, (on) => {
   if (map?.getLayer(DDS_LAYER)) map.setLayoutProperty(DDS_LAYER, 'visibility', on ? 'visible' : 'none')
 })
-watch(() => props.cctv, (on) => {
-  if (map?.getLayer(CCTV_LAYER)) map.setLayoutProperty(CCTV_LAYER, 'visibility', on ? 'visible' : 'none')
-  if (!on) popup?.remove()
-})
 watch(() => props.focus, (f) => {
   if (!f || !map) return
   const c = f.geometry.coordinates
@@ -446,7 +376,6 @@ defineExpose({ fitRegion, fitTo, flyToUser })
       </div>
       <div v-if="gistdaOn" class="legend-row"><span class="swatch" /> พื้นที่น้ำท่วม (ดาวเทียม)</div>
       <div v-if="cctvDds" class="legend-row"><CctvIcon kind="flood" /> กล้องจุดน้ำท่วม (มีภาพ)</div>
-      <div v-if="cctv" class="legend-row"><CctvIcon /> กล้อง CCTV จราจร</div>
     </div>
   </div>
 </template>
