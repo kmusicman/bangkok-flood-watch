@@ -32,8 +32,9 @@ export function withTrends(cur: FloodCollection, prev: FloodCollection | undefin
       }
     }
     const abnormal = p.level !== 'normal';
+    // ต้นทางบอกเวลาเริ่มท่วมเองได้ (API ของ กทม.) → ใช้ค่านั้นก่อน; ไม่งั้นนับจากที่ระบบเห็น
     const since = abnormal
-      ? (q && q.level !== 'normal' ? (q.since ?? q.observed_at) : p.observed_at)
+      ? (p.since ?? (q && q.level !== 'normal' ? (q.since ?? q.observed_at) : p.observed_at))
       : null;
     const sameDay = q && q.max_today != null && bkkDay(q.observed_at) === bkkDay(p.observed_at);
     const max_today = p.value == null ? (sameDay ? q!.max_today! : null) : sameDay ? Math.max(q!.max_today!, p.value) : p.value;

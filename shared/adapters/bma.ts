@@ -1,6 +1,6 @@
 // สำนักการระบายน้ำ กทม. — ไม่มี API ทางการ หน้า weather.bangkok.go.th/flood/ ฝัง `const floodData = [...]` ไว้ใน HTML
 // ตรวจ 26 ก.ย. 2569: เว็บตอบ 403 ให้ทุก client ที่ UA ไม่ใช่เบราว์เซอร์ และมักตอบเฉพาะ IP ในไทย
-// ลำดับ fallback: (1) หน้า กทม. โดยตรง → (2) relay ของ สสน. (flood_road) ถ้าไม่เก่ากว่า 3 ชม. → (3) ข้อมูลชุดเดิมใน KV (Worker จัดการ)
+// ลำดับ fallback: (0) API ของระบบ floodbangkok.bangkok.go.th (1 ต.ค. 2569) → (1) หน้า กทม. โดยตรง (ทุก 30 นาที) → (2) relay ของ สสน. (flood_road) ถ้าไม่เก่ากว่า 3 ชม. → (3) ข้อมูลชุดเดิม
 // Phase 2: ขอ feed ทางการจาก กทม. (CLAUDE.md ข้อ 9)
 
 import type { FloodFeature, Level } from '../types.ts';
@@ -116,6 +116,73 @@ export function parseRelay(raw: TwFloodRoadRaw, now = Date.now()): FloodFeature[
   return out;
 }
 
+// ---- (0) API ของระบบตรวจวัดน้ำท่วมถนน (floodbangkok.bangkok.go.th) — แกะจากหน้า device-info 1 ต.ค. 2569 ----
+//   sensor_profile?limit=-1 → รายชื่อจุดวัด {code, name, district, lat, long, device_status}
+//   sensor_flood?filter[date_created][_gte]=… → ค่าที่ส่งเข้ามาทุก ~5 นาที {sensor_name, value (ซม., string), timestamp (ms), start_flood "HH:MM", heighest_value}
+//   รวมจุดในอุโมงค์ทางลอด (TN.*) ด้วย; device_status 'malfunction' = เซนเซอร์เสีย → ไม่แสดงค่า
+export const BMA_API = 'https://floodbangkok.bangkok.go.th/bkk/dds/services/api/floods/v1/items';
+const API_WINDOW_MS = 30 * 60_000;
+
+interface ApiProfile { code: string; name: string | null; road: string | null; district: string | null; lat: number | null; long: number | null; device_status: string | null }
+interface ApiReading { sensor_name: string; value: string | number | null; timestamp: string | number | null; date_created: string; start_flood: string | null; heighest_value: string | number | null; timestamp_start_flood?: string | number | null }
+
+const readingTime = (r: ApiReading) => Number(r.timestamp) || Date.parse(r.date_created);
+
+export function parseBmaApi(profiles: ApiProfile[], readings: ApiReading[], now = Date.now()): FloodFeature[] {
+  const latest = new Map<string, ApiReading>();
+  for (const r of readings) {
+    const cur = latest.get(r.sensor_name);
+    if (!cur || readingTime(r) > readingTime(cur)) latest.set(r.sensor_name, r);
+  }
+  const out: FloodFeature[] = [];
+  for (const p of profiles) {
+    const r = latest.get(p.code);
+    if (!r || !validCoord(p.long, p.lat)) continue;
+    if (p.device_status === 'malfunction' || p.device_status === 'temporary_malfunction') continue;
+    const t = readingTime(r);
+    if (!Number.isFinite(t) || now - t > SENSOR_MAX_AGE_MS) continue;
+    const cm = Math.max(0, Number(r.value) || 0);
+    const max = r.heighest_value != null && r.heighest_value !== '' ? Number(r.heighest_value) : null;
+    const parts: string[] = [];
+    // เวลาเริ่มท่วมแบบเต็ม (ms) — start_flood เป็นแค่ HH:MM ไม่มีวันที่ ท่วมข้ามวันแล้วอ่านผิด
+    const startMs = Number(r.timestamp_start_flood)
+    const since = cm > 0 && Number.isFinite(startMs) && startMs > 0 && startMs <= t ? new Date(startMs).toISOString() : null
+    if (max != null && Number.isFinite(max) && max > cm) parts.push(`สูงสุด ${max} ซม.`);
+    if (p.code.startsWith('TN.')) parts.push('อุโมงค์ทางลอด');
+    out.push(point(p.long!, p.lat!, {
+      source: 'bma_flood_road',
+      id: p.code,
+      name: squash(p.name ?? p.code).replace(/\s*\*$/, ''),
+      province: 'กรุงเทพมหานคร',
+      province_code: '10',
+      district: squash(p.district ?? '') || districtOf(p.code),
+      value: cm,
+      unit: 'ซม.',
+      level: roadLevel(cm),
+      observed_at: new Date(t).toISOString(),
+      detail: parts.length ? parts.join(' · ') : null,
+      url: `https://floodbangkok.bangkok.go.th/device-info?sensor_profile_id=${encodeURIComponent(p.code)}`,
+      photo: null,
+      agency: 'สนน. กทม.',
+      since,
+    }));
+  }
+  return out;
+}
+
+async function fetchBmaApi(now = Date.now()): Promise<FloodFeature[]> {
+  const opts = { headers: { 'user-agent': BROWSER_UA, accept: 'application/json' }, timeoutMs: 40_000 };
+  const since = new Date(now - API_WINDOW_MS).toISOString();
+  const [profiles, readings] = await Promise.all([
+    fetchOk(`${BMA_API}/sensor_profile?limit=-1&fields=code,name,road,district,lat,long,device_status`, opts).then((r) => r.json() as Promise<{ data: ApiProfile[] }>),
+    fetchOk(`${BMA_API}/sensor_flood?limit=-1&sort=-date_created&fields=sensor_name,value,timestamp,date_created,start_flood,heighest_value,timestamp_start_flood&filter[date_created][_gte]=${encodeURIComponent(since)}`, opts).then((r) => r.json() as Promise<{ data: ApiReading[] }>),
+  ]);
+  if (!Array.isArray(profiles?.data) || !Array.isArray(readings?.data)) throw new Error('floodbangkok API: unexpected response shape');
+  const features = parseBmaApi(profiles.data, readings.data, now);
+  if (!features.length) throw new Error(`floodbangkok API: no fresh readings (${readings.data.length} rows)`);
+  return features;
+}
+
 /**
  * รอบนี้ไม่ได้ลองหน้า กทม. (เว้นระยะกันโดนบล็อก) และ relay ก็เก่า → ไม่ใช่ความล้มเหลวใหม่
  * ingestAll จะคงชุดเดิมไว้ทั้งก้อน (รวม error จริงของรอบที่ลองล่าสุด) แทนที่จะเขียน error ทับ
@@ -130,6 +197,12 @@ export class SkipRound extends Error {
  * (ไฟร์วอลล์ของ weather.bangkok.go.th จำกัดครั้งต่อ IP: 28 ก.ย. 2569 IP ไทยได้ 200 ครั้งแรกแล้ว 403 ติดกัน, runner ของ GitHub โดน 403 ตั้งแต่ 16:22 น.)
  */
 export async function fetchBma(direct = true): Promise<{ features: FloodFeature[]; via: string | null }> {
+  let apiError: unknown;
+  try {
+    return { features: await fetchBmaApi(), via: 'floodbangkok_api' };
+  } catch (e) {
+    apiError = e;
+  }
   let directError: unknown = 'not tried this round';
   if (direct) {
     try {
@@ -143,8 +216,8 @@ export async function fetchBma(direct = true): Promise<{ features: FloodFeature[
   }
   const relay = parseRelay(await fetchFloodRoadRelay());
   if (!relay.length) {
-    if (!direct) throw new SkipRound('BMA direct not due this round and thaiwater relay is stale');
-    throw new Error(`BMA direct failed (${String(directError)}) and thaiwater relay is stale`);
+    if (!direct) throw new SkipRound(`BMA API failed (${String(apiError)}); direct page not due this round; thaiwater relay is stale`);
+    throw new Error(`BMA API failed (${String(apiError)}); direct page failed (${String(directError)}); thaiwater relay is stale`);
   }
   return { features: relay, via: 'thaiwater_relay' };
 }
