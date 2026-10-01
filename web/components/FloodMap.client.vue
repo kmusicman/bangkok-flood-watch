@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import type { GeoJSONSource, Map as MLMap, MapMouseEvent } from 'maplibre-gl'
 import {
-  fmtTime, fmtValue, LEVEL_COLOR, LEVEL_LABEL, relTime, SOURCE_IDS, SOURCE_META,
+  fmtMaxToday, fmtSince, fmtTime, fmtTrend, fmtValue, LEVEL_COLOR, LEVEL_LABEL, relTime, SOURCE_IDS, SOURCE_META,
   type FloodBundle, type FloodFeature, type FloodProps, type Level, type SourceId,
 } from '../utils/format'
 
@@ -218,6 +218,10 @@ function openPopup(lngLat: [number, number], p: FloodProps, anchor?: 'bottom') {
   lv.style.fontWeight = '700'
   const v = fmtValue(p)
   if (v) add('div', v, 'popup-value')
+  const tr = fmtTrend(p)
+  if (tr) add('div', `แนวโน้ม ${tr.text}`, `small trend-${tr.dir}`)
+  const extra = [p.since ? `ผิดปกติ${fmtSince(p, props.now)}` : '', fmtMaxToday(p)].filter(Boolean).join(' · ')
+  if (extra) add('div', extra, 'small popup-since')
   if (p.detail) add('div', p.detail, 'popup-detail')
   add('div', [p.district, p.province].filter(Boolean).join(' · '), 'muted small')
   add('div', `${SOURCE_META[p.source]?.short ?? p.source}${p.agency ? ` · ${p.agency}` : ''}`, 'muted small')

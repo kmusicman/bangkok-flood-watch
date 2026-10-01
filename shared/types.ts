@@ -20,6 +20,13 @@ export interface FloodProps {
   url: string | null; // ลิงก์ไปหน้าต้นทาง
   photo: string | null;
   agency: string | null;
+  /** ค่าที่เปลี่ยนจากค่าวัดครั้งก่อน (หน่วยเดียวกับ value) และช่วงห่างเป็นนาที — คำนวณตอน ingest (shared/trends.ts) */
+  delta?: number | null;
+  delta_min?: number | null;
+  /** เวลาที่ระบบเห็นจุดนี้เริ่มผิดปกติต่อเนื่องมา (null = ปกติ) */
+  since?: string | null;
+  /** ค่าสูงสุดของวันนี้ (เวลาไทย) */
+  max_today?: number | null;
 }
 
 export interface FloodFeature {

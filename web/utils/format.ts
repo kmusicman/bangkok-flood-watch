@@ -43,3 +43,36 @@ export function fmtValue(p: FloodProps): string {
 }
 
 export const fmtInt = (n: number) => n.toLocaleString('th-TH');
+
+// ---- แนวโน้ม / ระยะเวลาที่ผิดปกติ (ค่ามาจาก shared/trends.ts ตอน ingest) ----
+const TREND_MAX_MIN = 180 // เทียบกับค่าที่เก่ากว่า 3 ชม. ไม่นับเป็นแนวโน้ม
+
+const num = (n: number, unit: string | null) => {
+  const dp = unit === 'ม.รทก.' || unit === 'ม.' ? 2 : Number.isInteger(n) ? 0 : 1
+  return n.toFixed(dp)
+}
+
+/** "▲ +3 ซม. ใน 10 นาที" — คืน null ถ้าไม่มีข้อมูลหรือเก่าเกิน */
+export function fmtTrend(p: FloodProps): { text: string; dir: 'up' | 'down' | 'flat' } | null {
+  if (p.delta == null || p.delta_min == null || p.delta_min > TREND_MAX_MIN) return null
+  const flat = Math.abs(p.delta) < (p.unit === 'ซม.' ? 1 : p.unit === 'มม.' ? 0.5 : 0.01)
+  if (flat) return { text: `ทรงตัว (${p.delta_min} นาที)`, dir: 'flat' }
+  const up = p.delta > 0
+  return { text: `${up ? '▲ +' : '▼ '}${num(p.delta, p.unit)}${p.unit ? ` ${p.unit}` : ''} ใน ${p.delta_min} นาที`, dir: up ? 'up' : 'down' }
+}
+
+/** "ตั้งแต่ 25 ก.ย. 16:50 (5 วัน 1 ชม.)" */
+export function fmtSince(p: FloodProps, now = Date.now()): string {
+  if (!p.since) return ''
+  const mins = Math.max(0, Math.round((now - Date.parse(p.since)) / 60_000))
+  const d = Math.floor(mins / 1440)
+  const h = Math.floor((mins % 1440) / 60)
+  const m = mins % 60
+  const dur = d ? `${d} วัน${h ? ` ${h} ชม.` : ''}` : h ? `${h} ชม.${m ? ` ${m} นาที` : ''}` : `${m} นาที`
+  return `ตั้งแต่ ${fmtTime(p.since, now)} (${dur})`
+}
+
+export function fmtMaxToday(p: FloodProps): string {
+  if (p.max_today == null || p.value == null || p.max_today <= p.value) return ''
+  return `สูงสุดวันนี้ ${num(p.max_today, p.unit)}${p.unit ? ` ${p.unit}` : ''}`
+}

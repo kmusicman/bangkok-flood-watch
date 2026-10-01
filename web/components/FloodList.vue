@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // รายการจุดน้ำท่วม (ใช้ในแท็บ "รายการ", "ใกล้ฉัน" และ 5 อันดับในภาพรวม) — ตัวกรองอยู่ที่แถวเครื่องมือ (FloodDashboard)
-import { fmtInt, fmtTime, fmtValue, LEVEL_LABEL, relTime, SOURCE_META, type FloodFeature } from '../utils/format'
+import { fmtInt, fmtSince, fmtTime, fmtTrend, fmtValue, LEVEL_LABEL, relTime, SOURCE_META, type FloodFeature } from '../utils/format'
 import { DDS_BY_SENSOR } from '../utils/cctvDds'
 
 const props = withDefaults(defineProps<{
@@ -45,8 +45,12 @@ const km = (f: FloodFeature) => {
               {{ [f.properties.district, f.properties.province].filter(Boolean).join(' · ') }}
               · {{ SOURCE_META[f.properties.source].short }} · {{ fmtTime(f.properties.observed_at, now) }} ({{ relTime(f.properties.observed_at, now) }})
             </span>
+            <span v-if="f.properties.since" class="since small">ผิดปกติ{{ fmtSince(f.properties, now) }}</span>
           </span>
-          <span class="value" :class="`lv-${f.properties.level}`">{{ fmtValue(f.properties) || LEVEL_LABEL[f.properties.level] }}</span>
+          <span class="right">
+            <span class="value" :class="`lv-${f.properties.level}`">{{ fmtValue(f.properties) || LEVEL_LABEL[f.properties.level] }}</span>
+            <span v-if="fmtTrend(f.properties)" class="trend small" :class="`t-${fmtTrend(f.properties)!.dir}`">{{ fmtTrend(f.properties)!.text.split(' ใน ')[0] }}</span>
+          </span>
         </button>
       </li>
     </ul>
@@ -69,7 +73,13 @@ const km = (f: FloodFeature) => {
 .cam { font-size: 13px; font-weight: 400; } /* บอกว่ารายการนี้มีรูป (เฉพาะเรื่องร้องเรียน Traffy) */
 .detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .km { color: var(--brand); margin-right: 4px; }
+.right { display: grid; justify-items: end; gap: 2px; flex: none; }
 .value { font-weight: 700; white-space: nowrap; }
+.trend { white-space: nowrap; font-weight: 600; }
+.t-up { color: var(--critical); }
+.t-down { color: var(--normal); }
+.t-flat { color: var(--muted); }
+.since { color: var(--warning); }
 .lv-critical { color: var(--critical); }
 .lv-warning { color: var(--warning); }
 .lv-watch { color: var(--watch); }

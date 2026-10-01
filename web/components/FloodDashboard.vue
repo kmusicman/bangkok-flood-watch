@@ -8,6 +8,7 @@ const props = defineProps<{ province?: string; district?: string }>()
 const { bundle, error, loading, now, reload, start } = useFloodData()
 onMounted(start)
 const hasGistdaKey = !!useRuntimeConfig().public.gistdaKey
+const myArea = useMyArea()
 
 // ---- ชั้นข้อมูล ----
 const visible = reactive<Record<SourceId, boolean>>({
@@ -82,6 +83,12 @@ watch(mapReady, tryFit)
 
 <template>
   <div class="dash">
+    <AreaSummary v-if="province || district" :bundle="bundle" :province="province" :district="district" />
+    <ClientOnly>
+      <NuxtLink v-if="!province && !district && myArea.saved.value" :to="myArea.saved.value.path" class="card myarea">
+        <span>★ ย่านของฉัน: <b>{{ myArea.saved.value.label }}</b></span><span aria-hidden="true">›</span>
+      </NuxtLink>
+    </ClientOnly>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="พื้นที่แผนที่">
         <button type="button" :aria-pressed="region === 'bkk'" @click="setRegion('bkk')">กทม.</button>
@@ -156,6 +163,8 @@ watch(mapReady, tryFit)
 <style scoped>
 .dash { display: grid; gap: 10px; }
 .dash > * { min-width: 0; }
+.myarea { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; text-decoration: none; color: var(--text); border-left: 5px solid var(--brand); }
+.myarea b { color: var(--brand); }
 
 .toolbar { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
 .toolbar > * { min-width: 0; }

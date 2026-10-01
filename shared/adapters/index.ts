@@ -7,6 +7,7 @@ import { fetchBma } from './bma.ts';
 import { fetchGistdaSummary, gistdaCollection } from './gistda.ts';
 import { fetchRain, fetchWaterlevel } from './thaiwater.ts';
 import { fetchTraffy } from './traffy.ts';
+import { withTrends } from '../trends.ts';
 
 /** key/secret ที่ adapter บางตัวต้องใช้ — ไม่มี key = ข้ามแหล่งนั้น */
 export interface FetchKeys {
@@ -66,7 +67,7 @@ export async function ingestAll(opts: IngestOptions = {}): Promise<IngestOutcome
   only.forEach((id, i) => {
     const r = settled[i];
     if (r.status === 'fulfilled') {
-      const c = r.value.collection ?? makeCollection(id, r.value.features, { via: r.value.via ?? null });
+      const c = withTrends(r.value.collection ?? makeCollection(id, r.value.features, { via: r.value.via ?? null }), previous?.sources?.[id]);
       bundle.sources[id] = c;
       ok.push(id);
       log(`✓ ${id}: ${c.count} ${c.features.length ? 'features' : 'items'}${c.via ? ` (via ${c.via})` : ''}`);
