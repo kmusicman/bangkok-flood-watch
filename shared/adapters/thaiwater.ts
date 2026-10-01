@@ -79,6 +79,7 @@ export function parseWaterlevel(raw: TwWaterlevelRaw, now = Date.now()): FloodFe
     if (!st || r.waterlevel_msl == null || !validCoord(st.tele_station_long, st.tele_station_lat)) continue;
     const observed_at = toIso(r.waterlevel_datetime);
     if (now - Date.parse(observed_at) > DAY_MS) continue; // สถานีที่ไม่ส่งข้อมูลมานานตัดทิ้ง
+    if (Date.parse(observed_at) - now > FUTURE_MS) continue; // เวลาในอนาคต = ต้นทางประทับเวลาผิด (1 ต.ค. 2569: สถานี ชป. 28 แห่งส่ง 23:00 ตอนเที่ยง) ไม่รู้ว่าวัดเมื่อไร
     const diff = r.diff_wl_bank != null ? Number(r.diff_wl_bank) : null;
     const bankText = r.diff_wl_bank_text?.includes('ล้น') ? 'ล้นตลิ่ง' : 'ต่ำกว่าตลิ่ง';
     out.push(point(st.tele_station_long, st.tele_station_lat, {
@@ -112,6 +113,7 @@ export function parseRain(raw: TwRainRaw, opts: { minMm?: number; now?: number }
     if (!Number.isFinite(mm) || mm < minMm) continue;
     const observed_at = toIso(r.rainfall_datetime);
     if (now - Date.parse(observed_at) > DAY_MS) continue;
+    if (Date.parse(observed_at) - now > FUTURE_MS) continue; // เวลาในอนาคต = ต้นทางประทับเวลาผิด
     out.push(point(st.tele_station_long, st.tele_station_lat, {
       source: 'thaiwater_rain',
       id: String(st.id),
@@ -133,6 +135,7 @@ export function parseRain(raw: TwRainRaw, opts: { minMm?: number; now?: number }
 }
 
 // ระบุตัวตนตรงๆ กับ สสน. (ไม่ปลอมเป็นเบราว์เซอร์) — Worker ของ Cloudflare ไม่ส่ง User-Agent ให้เอง
+const FUTURE_MS = 30 * 60_000;
 const TW_HEADERS = { 'user-agent': 'BangkokFloodWatch/0.1 (+https://bangkokflood.com)', accept: 'application/json' };
 export const fetchWaterlevel = async () => parseWaterlevel(await getJson<TwWaterlevelRaw>(`${TW_BASE}/waterlevel_load`, { timeoutMs: 45_000, headers: TW_HEADERS }));
 export const fetchRain = async () => parseRain(await getJson<TwRainRaw>(`${TW_BASE}/rain_24h`, { timeoutMs: 45_000, headers: TW_HEADERS }));
