@@ -220,7 +220,7 @@ function openPopup(lngLat: [number, number], p: FloodProps, anchor?: 'bottom') {
   if (v) add('div', v, 'popup-value')
   const tr = fmtTrend(p)
   if (tr) add('div', `แนวโน้ม ${tr.text}`, `small trend-${tr.dir}`)
-  const extra = [p.since ? `ผิดปกติ${fmtSince(p, props.now)}` : '', fmtMaxToday(p)].filter(Boolean).join(' · ')
+  const extra = [p.since ? `พบผิดปกติต่อเนื่อง${fmtSince(p, props.now)}` : '', fmtMaxToday(p)].filter(Boolean).join(' · ')
   if (extra) add('div', extra, 'small popup-since')
   if (p.detail) add('div', p.detail, 'popup-detail')
   add('div', [p.district, p.province].filter(Boolean).join(' · '), 'muted small')

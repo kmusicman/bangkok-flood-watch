@@ -45,7 +45,7 @@ const km = (f: FloodFeature) => {
               {{ [f.properties.district, f.properties.province].filter(Boolean).join(' · ') }}
               · {{ SOURCE_META[f.properties.source].short }} · {{ fmtTime(f.properties.observed_at, now) }} ({{ relTime(f.properties.observed_at, now) }})
             </span>
-            <span v-if="f.properties.since" class="since small">ผิดปกติ{{ fmtSince(f.properties, now) }}</span>
+            <span v-if="f.properties.since" class="since small">พบผิดปกติต่อเนื่อง{{ fmtSince(f.properties, now) }}</span>
           </span>
           <span class="right">
             <span class="value" :class="`lv-${f.properties.level}`">{{ fmtValue(f.properties) || LEVEL_LABEL[f.properties.level] }}</span>
