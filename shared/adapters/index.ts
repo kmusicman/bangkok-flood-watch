@@ -76,9 +76,11 @@ export async function ingestAll(opts: IngestOptions = {}): Promise<IngestOutcome
     const error = String(r.reason?.message ?? r.reason);
     const prev = previous?.sources?.[id];
     if (r.reason?.skip && prev) {
-      // ไม่ได้ลองต้นทางหลักรอบนี้ (เว้นระยะกันโดนบล็อก) → คงชุดเดิมทั้งก้อน ไม่เขียน error ทับ
+      // ไม่ได้ลองหน้าเว็บสำรองรอบนี้ (เว้นระยะกันโดนบล็อก) → คงข้อมูลชุดเดิม แต่บันทึกข้อความรอบนี้
+      // (ข้อความรวม error ของ API ด้วย — ต้องเห็นจากภายนอกได้ว่าทางหลักล้มเพราะอะไร)
       skipped.push(id);
-      log(`– ${id}: ${error} (keeping previous as-is)`);
+      bundle.sources[id] = { ...prev, stale: true, error };
+      log(`– ${id}: ${error} (keeping previous data)`);
       return;
     }
     failed.push({ id, error });
