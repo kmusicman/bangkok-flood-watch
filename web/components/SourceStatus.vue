@@ -30,7 +30,11 @@ const anySnapshot = computed(() => rows.value.some((r) => r.snapshot))
     <div class="chips" :class="{ vertical }">
       <div v-for="r in rows" :key="r.id" class="chip src" :class="{ stale: r.stale }" :title="r.meta.name + (r.c?.error ? ` — ${r.c.error}` : '')">
         <span class="name">{{ r.meta.short }}</span>
-        <template v-if="r.c">
+        <template v-if="r.c && Date.parse(r.c.fetched_at) <= 0">
+          <span class="muted small">ยังดึงข้อมูลไม่ได้</span>
+          <span class="badge badge-stale" :title="r.c.error ?? ''">ต้นทางปฏิเสธ</span>
+        </template>
+        <template v-else-if="r.c">
           <span v-if="r.id === 'gistda_flood'" class="muted small">ภาพล่าสุด</span>
           <span class="muted">{{ fmtTime(r.c.observed_at ?? r.c.fetched_at, now) }}</span>
           <span class="muted small">({{ relTime(r.c.observed_at ?? r.c.fetched_at, now) }})</span>

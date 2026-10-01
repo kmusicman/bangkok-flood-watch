@@ -30,7 +30,9 @@ const parts = computed(() => {
     const c = props.bundle.sources.bma_flood_road
     const at = c?.observed_at ?? c?.fetched_at
     const old = !at || props.now - Date.parse(at) > OLD_MS
-    if (!roads.length) out.push({ text: 'ไม่มีจุดวัดน้ำบนถนนในพื้นที่นี้ (ไม่ได้แปลว่าไม่มีน้ำ)', tone: 'info' })
+    const never = !c || !c.count // ยังดึงไม่ได้เลย — ห้ามบอกว่า "ไม่มีจุดวัด"
+    if (never) out.push({ text: 'ตอนนี้ยังดึงข้อมูลจุดวัดน้ำบนถนนของ กทม. ไม่ได้ — ไม่ทราบสถานะถนน ดูเรื่องร้องเรียนและกล้องประกอบ', tone: 'warn' })
+    else if (!roads.length) out.push({ text: 'ไม่มีจุดวัดน้ำบนถนนในพื้นที่นี้ (ไม่ได้แปลว่าไม่มีน้ำ)', tone: 'info' })
     else if (old) out.push({ text: `ข้อมูลจุดวัดน้ำบนถนนของ กทม. ยังไม่อัปเดต (ล่าสุด ${fmtTime(at, props.now)}) — ใช้สถานะถนนจากแหล่งนี้ไม่ได้ ดูเรื่องร้องเรียนและกล้องประกอบ`, tone: 'warn' })
     else if (!wet.length) out.push({ text: `ถนนไม่มีน้ำเกินเกณฑ์ทุกจุดวัด (${fmtInt(roads.length)} จุด)`, tone: 'ok' })
     else {
@@ -49,6 +51,7 @@ const parts = computed(() => {
       if (crit || warn) out.push({ text: `คลองเกินเกณฑ์ ${fmtInt(crit + warn)} จาก ${fmtInt(cs.length)} จุดวัด${crit ? ` (วิกฤต ${fmtInt(crit)})` : ''}`, tone: 'bad' })
       else out.push({ text: `คลองยังไม่ถึงเกณฑ์ทุกจุดวัด (${fmtInt(cs.length)} จุด)`, tone: 'ok' })
     } else if (cs.length) out.push({ text: `ข้อมูลคลองยังไม่อัปเดต (ล่าสุด ${fmtTime(cat, props.now)})`, tone: 'warn' })
+    else if (!cc || !cc.count) out.push({ text: 'ตอนนี้ยังดึงข้อมูลระดับน้ำในคลองของ กทม. ไม่ได้', tone: 'warn' })
   }
   // สถานีวัดระดับน้ำ (สสน.)
   const st = pick('thaiwater_waterlevel')
