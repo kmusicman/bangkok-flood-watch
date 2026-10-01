@@ -4,15 +4,12 @@
 //       waterStation[].water_station_info {water_id, water_code, water_name, latitude, longitude, warning, critical, left_bank, river_name, district_id}
 //       waterStation[].water_level_last   {wl_in, site_timestamp "/Date(ms)/", max_in_day, max_in_yesterday}  (wl -99 = ไม่มีค่า)
 //       โดเมนเดียวกับหน้าน้ำท่วมถนนที่บล็อก runner ของ GitHub เป็นช่วง ๆ
-//   (2) API เปิดของ POPNIX Flood (flood.pop.in.th/api_overview.php) — ข้อมูลชุดเดียวกัน (water_id ตรงกัน 200/200)
-//       ใช้ฟรีรวมเชิงพาณิชย์ เงื่อนไข: ให้เครดิต "ข้อมูล: สำนักการระบายน้ำ กรุงเทพมหานคร ผ่าน POPNIX Flood", ไม่เรียกถี่ (เรา 6 ครั้ง/ชม.)
 // เขตของแต่ละจุดมาจาก shared/data/bma_canals.json (water_id → เขต, สร้างจาก district_id ของ KlongMap)
 import type { FloodFeature, Level } from '../types.ts';
 import { fetchOk, point, squash, validCoord } from '../util.ts';
 import CANALS from '../data/bma_canals.json' with { type: 'json' };
 
 export const KLONGMAP_URL = 'https://weather.bangkok.go.th/Klongmap/GetDataForUpdate';
-export const POPNIX_OVERVIEW_URL = 'https://flood.pop.in.th/api_overview.php';
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36';
 const MAX_AGE_MS = 6 * 3600_000;
 const PAGE_URL = 'https://weather.bangkok.go.th/KlongMap';
@@ -87,40 +84,12 @@ export function parseKlongMap(data: { waterStation?: KlongStation[] }, now = Dat
   return out;
 }
 
-interface PopnixStation { id: number; name: string; river: string | null; lat: number; lng: number; warn: number | null; crit: number | null; bank: number | null; wl: number | null; max_day: number | null; measured_at: string | null; online?: boolean }
-
-export function parsePopnix(data: { stations?: PopnixStation[] }, now = Date.now()): FloodFeature[] {
-  const out: FloodFeature[] = [];
-  for (const s of data.stations ?? []) {
-    if (s.wl == null || !s.measured_at || !validCoord(s.lng, s.lat)) continue;
-    const at = Date.parse(s.measured_at.replace(' ', 'T') + '+07:00'); // เวลาไทยไม่มี offset
-    if (!Number.isFinite(at) || now - at > MAX_AGE_MS) continue;
-    out.push(feature({
-      id: s.id, name: s.name, river: s.river, lat: s.lat, lng: s.lng, wl: s.wl, warn: s.warn, crit: s.crit, bank: s.bank,
-      maxDay: s.max_day ?? null, at, agency: 'สนน. กทม. (ผ่าน POPNIX Flood)',
-    }));
-  }
-  return out;
-}
-
 export async function fetchCanals(): Promise<{ features: FloodFeature[]; via: string | null }> {
-  let first: unknown;
-  try {
-    const r = await fetchOk(KLONGMAP_URL, {
-      headers: { 'user-agent': BROWSER_UA, accept: 'application/json', 'x-requested-with': 'XMLHttpRequest', referer: PAGE_URL },
-      timeoutMs: 45_000,
-    });
-    const features = parseKlongMap(await r.json() as { waterStation?: KlongStation[] });
-    if (!features.length) throw new Error('KlongMap: no fresh stations');
-    return { features, via: null };
-  } catch (e) {
-    first = e;
-  }
-  const r = await fetchOk(POPNIX_OVERVIEW_URL, {
-    headers: { 'user-agent': 'BangkokFloodWatch/0.1 (+https://bangkokflood.com)', accept: 'application/json' },
-    timeoutMs: 30_000,
+  const r = await fetchOk(KLONGMAP_URL, {
+    headers: { 'user-agent': BROWSER_UA, accept: 'application/json', 'x-requested-with': 'XMLHttpRequest', referer: PAGE_URL },
+    timeoutMs: 45_000,
   });
-  const features = parsePopnix(await r.json() as { stations?: PopnixStation[] });
-  if (!features.length) throw new Error(`KlongMap failed (${String(first)}) and POPNIX has no fresh stations`);
-  return { features, via: 'popnix' };
+  const features = parseKlongMap(await r.json() as { waterStation?: KlongStation[] });
+  if (!features.length) throw new Error('KlongMap: no fresh stations');
+  return { features, via: null };
 }

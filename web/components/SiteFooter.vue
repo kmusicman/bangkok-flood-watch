@@ -16,9 +16,6 @@ const consentOpen = useState('cookie-consent-open', () => false)
       ดูรายพื้นที่: <NuxtLink to="/bangkok/">กรุงเทพฯ รายเขต</NuxtLink> · <NuxtLink to="/province/">รายจังหวัดทั่วประเทศ</NuxtLink> · <NuxtLink to="/en/">English</NuxtLink>
     </p>
     <p>
-      ระดับน้ำคลองและน้ำท่วมถนน: สำนักการระบายน้ำ กรุงเทพมหานคร (บางช่วงผ่าน <a href="https://flood.pop.in.th" target="_blank" rel="noopener">POPNIX Flood</a> เมื่อดึงจาก กทม. โดยตรงไม่ได้)
-    </p>
-    <p>
       แผนที่ © <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors
       · <button class="linklike" type="button" @click="consentOpen = true">ตั้งค่าคุกกี้</button>
     </p>
