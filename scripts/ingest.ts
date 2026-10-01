@@ -52,6 +52,13 @@ async function loadPrevious(): Promise<FloodBundle | null> {
 }
 
 const previous = await loadPrevious();
+// เลิกใช้ POPNIX Flood เป็นแหล่งข้อมูลแล้ว (ผู้ใช้สั่ง 1 ต.ค. 2569) → ทิ้งชุดเก่าที่ได้มาทางนั้น ไม่ให้ค้างแสดงบนเว็บ
+for (const [id, c] of Object.entries(previous?.sources ?? {})) {
+  if (c?.via === 'popnix') {
+    delete previous!.sources[id as SourceId];
+    console.log(`dropped previous ${id} (came via POPNIX)`);
+  }
+}
 const { bundle, ok, failed } = await ingestAll({ previous, only, keys, log: (m) => console.log(m) });
 // ฝัง index ไว้หน้า sources — Worker ตอบ index.json จากหัวไฟล์นี้โดยไม่ parse ทั้งก้อน (ดู withIndex)
 const json = JSON.stringify(withIndex(bundle));
