@@ -47,6 +47,7 @@ function setAll(on: boolean) {
 .mark-thaiwater_waterlevel { border-color: #0d47a1; }
 .mark-thaiwater_rain { border-color: #4a148c; }
 .mark-traffy_flood { border-color: #37474f; }
+.mark-bma_canal { border-color: #00838f; }
 .mark-gistda_flood { border-color: #224ca9; background: rgba(34, 76, 169, 0.75); border-radius: 3px; }
 .chip-clear { color: var(--muted); }
 </style>

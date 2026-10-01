@@ -41,6 +41,7 @@ const STROKE: Partial<Record<SourceId, string>> = {
   thaiwater_waterlevel: '#0d47a1',
   thaiwater_rain: '#4a148c',
   traffy_flood: '#37474f',
+  bma_canal: '#00838f',
 }
 
 // ---- GISTDA: tile PNG พื้นที่น้ำท่วมจากดาวเทียม (key จำกัด referrer, เรียกจากเบราว์เซอร์โดยตรง) ----

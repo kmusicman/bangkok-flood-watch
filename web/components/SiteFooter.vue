@@ -5,7 +5,7 @@ const consentOpen = useState('cookie-consent-open', () => false)
 <template>
   <footer class="container small muted">
     <p>
-      <b>ข้อจำกัดความรับผิดชอบ:</b> เว็บนี้รวบรวมข้อมูลจากแหล่งทางการ (คลังข้อมูลน้ำแห่งชาติ สสน., สำนักการระบายน้ำ กทม., Traffy Fondue)
+      <b>ข้อจำกัดความรับผิดชอบ:</b> เว็บนี้รวบรวมข้อมูลจากแหล่งทางการ (คลังข้อมูลน้ำแห่งชาติ สสน., สำนักการระบายน้ำ กทม., Traffy Fondue, GISTDA)
       โดยอาสาสมัคร <b>ไม่ใช่หน่วยงานรัฐ</b> ข้อมูลอาจล่าช้าหรือคลาดเคลื่อน โปรดตรวจสอบกับหน่วยงานโดยตรงก่อนตัดสินใจเดินทาง
     </p>
     <p>
@@ -14,6 +14,9 @@ const consentOpen = useState('cookie-consent-open', () => false)
     </p>
     <p>
       ดูรายพื้นที่: <NuxtLink to="/bangkok/">กรุงเทพฯ รายเขต</NuxtLink> · <NuxtLink to="/province/">รายจังหวัดทั่วประเทศ</NuxtLink> · <NuxtLink to="/en/">English</NuxtLink>
+    </p>
+    <p>
+      ระดับน้ำคลองและน้ำท่วมถนน: สำนักการระบายน้ำ กรุงเทพมหานคร (บางช่วงผ่าน <a href="https://flood.pop.in.th" target="_blank" rel="noopener">POPNIX Flood</a> เมื่อดึงจาก กทม. โดยตรงไม่ได้)
     </p>
     <p>
       แผนที่ © <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors

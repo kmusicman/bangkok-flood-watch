@@ -9,7 +9,7 @@ export interface FloodFilters {
 }
 
 // แหล่งที่เป็นเซนเซอร์/สถานีทางการมาก่อนเรื่องร้องเรียน เมื่อระดับเท่ากัน
-const SOURCE_RANK: Record<SourceId, number> = { bma_flood_road: 3, thaiwater_waterlevel: 2, thaiwater_rain: 1, traffy_flood: 0, gistda_flood: 0 }
+const SOURCE_RANK: Record<SourceId, number> = { bma_flood_road: 3, bma_canal: 2, thaiwater_waterlevel: 2, thaiwater_rain: 1, traffy_flood: 0, gistda_flood: 0 }
 
 export function sortBySeverity(list: FloodFeature[]): FloodFeature[] {
   return list.sort((a, b) =>

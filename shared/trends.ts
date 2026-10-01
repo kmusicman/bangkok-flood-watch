@@ -6,7 +6,7 @@
 import type { FloodCollection, FloodFeature, SourceId } from './types.ts';
 
 /** แหล่งที่ค่ามีความหมายเชิงตัวเลขต่อเนื่อง (Traffy เป็นเรื่องร้องเรียน ไม่มีค่า) */
-export const TREND_SOURCES: SourceId[] = ['bma_flood_road', 'thaiwater_waterlevel', 'thaiwater_rain'];
+export const TREND_SOURCES: SourceId[] = ['bma_flood_road', 'bma_canal', 'thaiwater_waterlevel', 'thaiwater_rain'];
 
 const bkkDay = (iso: string) => new Date(Date.parse(iso) + 7 * 3600_000).toISOString().slice(0, 10);
 

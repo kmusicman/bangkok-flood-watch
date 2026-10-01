@@ -12,9 +12,9 @@ const myArea = useMyArea()
 
 // ---- ชั้นข้อมูล ----
 const visible = reactive<Record<SourceId, boolean>>({
-  bma_flood_road: true, thaiwater_waterlevel: true, thaiwater_rain: true, traffy_flood: true, gistda_flood: hasGistdaKey,
+  bma_flood_road: true, bma_canal: true, thaiwater_waterlevel: true, thaiwater_rain: true, traffy_flood: true, gistda_flood: hasGistdaKey,
 })
-const LAYER_ORDER: SourceId[] = ['traffy_flood', 'bma_flood_road', 'thaiwater_waterlevel', 'thaiwater_rain', 'gistda_flood']
+const LAYER_ORDER: SourceId[] = ['traffy_flood', 'bma_flood_road', 'bma_canal', 'thaiwater_waterlevel', 'thaiwater_rain', 'gistda_flood']
 const layerIds = computed(() => LAYER_ORDER.filter((id) => id !== 'gistda_flood' || hasGistdaKey))
 const cctvDds = ref(true) // กล้องที่จุดวัดน้ำท่วม (มีภาพ)
 const layersOpen = ref(false)

@@ -1,6 +1,6 @@
 // สำนักการระบายน้ำ กทม. — ไม่มี API ทางการ หน้า weather.bangkok.go.th/flood/ ฝัง `const floodData = [...]` ไว้ใน HTML
 // ตรวจ 26 ก.ย. 2569: เว็บตอบ 403 ให้ทุก client ที่ UA ไม่ใช่เบราว์เซอร์ และมักตอบเฉพาะ IP ในไทย
-// ลำดับ fallback: (0) API ของระบบ floodbangkok.bangkok.go.th (1 ต.ค. 2569) → (1) หน้า กทม. โดยตรง (ทุก 30 นาที) → (2) relay ของ สสน. (flood_road) ถ้าไม่เก่ากว่า 3 ชม. → (3) ข้อมูลชุดเดิม
+// ลำดับ fallback: (0) API ของระบบ floodbangkok.bangkok.go.th (1 ต.ค. 2569) → (0b) API เปิดของ POPNIX Flood → (1) หน้า กทม. โดยตรง (ทุก 30 นาที) → (2) relay ของ สสน. (flood_road) ถ้าไม่เก่ากว่า 3 ชม. → (3) ข้อมูลชุดเดิม
 // Phase 2: ขอ feed ทางการจาก กทม. (CLAUDE.md ข้อ 9)
 
 import type { FloodFeature, Level } from '../types.ts';
@@ -183,6 +183,54 @@ async function fetchBmaApi(now = Date.now()): Promise<FloodFeature[]> {
   return features;
 }
 
+// ---- (0b) API เปิดของ POPNIX Flood (flood.pop.in.th/api_roads.php) — ข้อมูลชุดเดียวกัน (รหัส FL.xxx ตรงกัน) ----
+//   ใช้เมื่อ API ของ กทม. ปฏิเสธ (1 ต.ค. 2569: floodbangkok ตอบ 403 ให้ runner ของ GitHub เหมือน weather.bangkok.go.th)
+//   เงื่อนไขของ POPNIX: ใช้ฟรีรวมเชิงพาณิชย์, ให้เครดิต (อยู่ท้ายหน้าเว็บ + agency ในแต่ละจุด), ไม่เรียกถี่ (เรา 6 ครั้ง/ชม.)
+//   level 'off' = เซนเซอร์ไม่ส่งค่า/ขัดข้อง → ไม่แสดงค่า; kind 2 = อุโมงค์ทางลอด
+export const POPNIX_ROADS_URL = 'https://flood.pop.in.th/api_roads.php';
+
+interface PopnixRoad { code: string; kind: number; name: string; district: string | null; lat: number; lng: number; depth: number | null; measured_at: string | null; flood_max: number | null; level: string; since: string | null }
+
+const bkkIso = (s: string) => new Date(Date.parse(s.replace(' ', 'T') + '+07:00')).toISOString();
+
+export function parsePopnixRoads(data: { roads?: PopnixRoad[] }, now = Date.now()): FloodFeature[] {
+  const out: FloodFeature[] = [];
+  for (const r of data.roads ?? []) {
+    if (!r.code || r.level === 'off' || r.depth == null || !r.measured_at || !validCoord(r.lng, r.lat)) continue;
+    const observed_at = bkkIso(r.measured_at);
+    if (now - Date.parse(observed_at) > SENSOR_MAX_AGE_MS) continue;
+    const cm = Math.max(0, Number(r.depth) || 0);
+    const parts: string[] = [];
+    if (r.flood_max != null && r.flood_max > cm) parts.push(`สูงสุด ${r.flood_max} ซม.`);
+    if (r.kind === 2 || r.code.startsWith('TN.')) parts.push('อุโมงค์ทางลอด');
+    out.push(point(r.lng, r.lat, {
+      source: 'bma_flood_road',
+      id: r.code,
+      name: squash(r.name),
+      province: 'กรุงเทพมหานคร',
+      province_code: '10',
+      district: r.district ? squash(r.district) : districtOf(r.code),
+      value: cm,
+      unit: 'ซม.',
+      level: roadLevel(cm),
+      observed_at,
+      detail: parts.length ? parts.join(' · ') : null,
+      url: `https://floodbangkok.bangkok.go.th/device-info?sensor_profile_id=${encodeURIComponent(r.code)}`,
+      photo: null,
+      agency: 'สนน. กทม. (ผ่าน POPNIX Flood)',
+      since: cm > 0 && r.since ? bkkIso(r.since) : null,
+    }));
+  }
+  return out;
+}
+
+async function fetchPopnixRoads(): Promise<FloodFeature[]> {
+  const r = await fetchOk(POPNIX_ROADS_URL, { headers: { 'user-agent': 'BangkokFloodWatch/0.1 (+https://bangkokflood.com)', accept: 'application/json' }, timeoutMs: 30_000 });
+  const features = parsePopnixRoads(await r.json() as { roads?: PopnixRoad[] });
+  if (!features.length) throw new Error('POPNIX roads: no fresh sensors');
+  return features;
+}
+
 /**
  * รอบนี้ไม่ได้ลองหน้า กทม. (เว้นระยะกันโดนบล็อก) และ relay ก็เก่า → ไม่ใช่ความล้มเหลวใหม่
  * ingestAll จะคงชุดเดิมไว้ทั้งก้อน (รวม error จริงของรอบที่ลองล่าสุด) แทนที่จะเขียน error ทับ
@@ -202,6 +250,11 @@ export async function fetchBma(direct = true): Promise<{ features: FloodFeature[
     return { features: await fetchBmaApi(), via: 'floodbangkok_api' };
   } catch (e) {
     apiError = e;
+  }
+  try {
+    return { features: await fetchPopnixRoads(), via: 'popnix' };
+  } catch (e) {
+    apiError = `${String(apiError)}; POPNIX: ${String(e)}`;
   }
   let directError: unknown = 'not tried this round';
   if (direct) {

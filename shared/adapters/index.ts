@@ -4,6 +4,7 @@
 import type { FloodBundle, FloodCollection, FloodFeature, SourceId } from '../types.ts';
 import { makeCollection, SOURCE_IDS } from '../util.ts';
 import { fetchBma } from './bma.ts';
+import { fetchCanals } from './canal.ts';
 import { fetchGistdaSummary, gistdaCollection } from './gistda.ts';
 import { fetchRain, fetchWaterlevel } from './thaiwater.ts';
 import { fetchTraffy } from './traffy.ts';
@@ -22,6 +23,7 @@ export const FETCHERS: Record<SourceId, (keys: FetchKeys) => Promise<FetchResult
   thaiwater_waterlevel: async () => ({ features: await fetchWaterlevel() }),
   thaiwater_rain: async () => ({ features: await fetchRain() }),
   bma_flood_road: ({ bmaDirect }) => fetchBma(bmaDirect !== false),
+  bma_canal: () => fetchCanals(),
   traffy_flood: async () => ({ features: await fetchTraffy() }),
   gistda_flood: async ({ gistda }) => {
     if (!gistda) throw new Error('no GISTDA_API_KEY');

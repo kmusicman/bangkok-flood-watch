@@ -3,7 +3,7 @@
 
 export type Level = 'normal' | 'watch' | 'warning' | 'critical';
 
-export type SourceId = 'thaiwater_waterlevel' | 'thaiwater_rain' | 'bma_flood_road' | 'traffy_flood' | 'gistda_flood';
+export type SourceId = 'thaiwater_waterlevel' | 'thaiwater_rain' | 'bma_flood_road' | 'bma_canal' | 'traffy_flood' | 'gistda_flood';
 
 export interface FloodProps {
   source: SourceId;

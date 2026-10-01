@@ -95,6 +95,12 @@ curl -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://bangkokflood.com/a
 - ตัวกรอง/การนับอยู่ใน `composables/useFloodItems.ts` (แชร์ระหว่างแถวเครื่องมือ ภาพรวม รายการ); ข้อมูลกลางใน `useFloodData()` — `start()` เรียกครั้งเดียวจากแดชบอร์ด (หน้า /links ไม่โหลด 3 MB)
 - ข้อความ SEO (h1 + ย่อหน้าอธิบาย) ยัง prerender: h1 อยู่ในแถบบน ย่อหน้าอยู่ในการ์ด "เกี่ยวกับข้อมูล" ใต้แดชบอร์ด
 
+## เซนเซอร์ถนน + คลอง กทม. (1 ต.ค. 2569)
+- **ถนน** (`shared/adapters/bma.ts`) ลำดับ: (0) API ระบบ floodbangkok (`…/items/sensor_profile` + `sensor_flood` ช่วง 30 นาที, 237 จุดรวมอุโมงค์, มีเวลาเริ่มท่วมเต็ม) → (0b) `flood.pop.in.th/api_roads.php` → (1) หน้า weather.bangkok.go.th/flood (ทุก 30 นาที) → (2) relay สสน.
+- **คลอง** แหล่งใหม่ `bma_canal` (`shared/adapters/canal.ts`, ~190 จุด ม.รทก. เทียบเกณฑ์เฝ้าระวัง/วิกฤตรายจุด) ลำดับ: (1) `weather.bangkok.go.th/Klongmap/GetDataForUpdate` (JSON ~2 MB) → (2) `flood.pop.in.th/api_overview.php` (water_id ตรงกัน 200/200); เขตจาก `shared/data/bma_canals.json` (district_id ของ KlongMap = ลำดับเขตใน `web/data/areas.ts`)
+- **กทม. บล็อก runner ของ GitHub ทุกโดเมน** (weather.bangkok.go.th และ floodbangkok ตอบ 403 — ตรวจ 1 ต.ค. 2569) แต่ตอบ IP ในไทย → บน production ข้อมูลถนน/คลองจะมาทาง POPNIX (`via: popnix`) เป็นหลัก; เงื่อนไข POPNIX: ใช้ฟรี, ให้เครดิต (ท้ายหน้าเว็บ + agency "ผ่าน POPNIX Flood"), ไม่เรียกถี่, ห้ามทำให้ดูเป็นประกาศทางการ
+- ถ้าวันหนึ่ง POPNIX ปิด: ทางเลือกคือเครื่องในไทยรัน `npm run ingest:push` หรือขอ feed ทางการจาก กทม. (CLAUDE.md Phase 2)
+
 ## แนวโน้ม · ระยะเวลาที่ผิดปกติ · สรุปรายพื้นที่ (1 ต.ค. 2569 — ไอเดียจาก POPNIX Flood)
 - `shared/trends.ts` (เรียกใน `ingestAll`) เทียบแต่ละจุดกับ bundle ก่อนหน้าด้วย id → ใส่ `delta`/`delta_min` (เปลี่ยนจากค่าวัดครั้งก่อน), `since` (เริ่มผิดปกติต่อเนื่องเมื่อไร — เท่าที่ระบบเห็น), `max_today` (สูงสุดของวันตามเวลาไทย) ให้ระดับน้ำ สสน., ฝน, เซนเซอร์ถนน กทม. — ไม่ต้องมีฐานข้อมูล; แนวโน้มที่ห่างเกิน 3 ชม. ไม่แสดง
 - `AreaSummary.vue` บนหน้ารายเขต/จังหวัด: ประโยคสรุปถนน/สถานีวัด/ร้องเรียน/ฝน + ปุ่ม "บันทึกย่านนี้" (`useMyArea`, localStorage เท่านั้น) → หน้าแรกขึ้นทางลัด "★ ย่านของฉัน"

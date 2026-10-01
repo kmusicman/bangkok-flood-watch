@@ -38,6 +38,18 @@ const parts = computed(() => {
       out.push({ text: `ถนนน้ำท่วม ${fmtInt(wet.length)} จาก ${fmtInt(roads.length)} จุดวัด · ลึกสุด ${fmtValue(d.properties)} ที่${d.properties.name}`, tone: 'bad' })
     }
   }
+  // คลอง กทม.
+  if (props.province === BANGKOK_TH) {
+    const cs = pick('bma_canal')
+    const cc = props.bundle.sources.bma_canal
+    const cat = cc?.observed_at ?? cc?.fetched_at
+    if (cs.length && cat && props.now - Date.parse(cat) <= OLD_MS) {
+      const crit = cs.filter((f) => f.properties.level === 'critical').length
+      const warn = cs.filter((f) => f.properties.level === 'warning').length
+      if (crit || warn) out.push({ text: `คลองเกินเกณฑ์ ${fmtInt(crit + warn)} จาก ${fmtInt(cs.length)} จุดวัด${crit ? ` (วิกฤต ${fmtInt(crit)})` : ''}`, tone: 'bad' })
+      else out.push({ text: `คลองยังไม่ถึงเกณฑ์ทุกจุดวัด (${fmtInt(cs.length)} จุด)`, tone: 'ok' })
+    } else if (cs.length) out.push({ text: `ข้อมูลคลองยังไม่อัปเดต (ล่าสุด ${fmtTime(cat, props.now)})`, tone: 'warn' })
+  }
   // สถานีวัดระดับน้ำ (สสน.)
   const st = pick('thaiwater_waterlevel')
   if (st.length) {

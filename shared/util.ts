@@ -22,6 +22,13 @@ export const SOURCE_META: Record<SourceId, SourceMeta> = {
     url: 'https://weather.bangkok.go.th/flood/',
     unit: 'ซม.',
   },
+  bma_canal: {
+    id: 'bma_canal',
+    name: 'ระดับน้ำในคลอง กทม. (สำนักการระบายน้ำ กทม.)',
+    short: 'คลอง กทม.',
+    url: 'https://weather.bangkok.go.th/KlongMap',
+    unit: 'ม.รทก.',
+  },
   traffy_flood: {
     id: 'traffy_flood',
     name: 'เรื่องร้องเรียนน้ำท่วม (Traffy Fondue)',
