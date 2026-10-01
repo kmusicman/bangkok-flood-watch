@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // ประโยคสรุปของพื้นที่ (หน้ารายเขต/จังหวัด) + ปุ่ม "บันทึกย่านนี้"
 // อ่านง่ายกว่าตัวเลขบนแผนที่: บอกสถานะถนน/สถานีวัด/เรื่องร้องเรียน/ฝน ของพื้นที่นี้ในประโยคเดียว
-import { fmtInt, fmtValue, type FloodBundle, type FloodFeature } from '../utils/format'
+import { fmtInt, fmtTime, fmtValue, type FloodBundle, type FloodFeature } from '../utils/format'
 import { BANGKOK_TH } from '../data/areas'
 
-const props = defineProps<{ bundle: FloodBundle | null; province?: string; district?: string }>()
+const props = defineProps<{ bundle: FloodBundle | null; now: number; province?: string; district?: string }>()
+// ข้อมูลแหล่งไหนเก่ากว่านี้ ห้ามสรุปว่า "ไม่มีน้ำ" — บอกเวลาข้อมูลแทน (ความปลอดภัย: คนอาจตัดสินใจเดินทางจากประโยคนี้)
+const OLD_MS = 60 * 60_000
 const route = useRoute()
 const { saved, save, clear } = useMyArea()
 
@@ -25,7 +27,11 @@ const parts = computed(() => {
   if (props.province === BANGKOK_TH) {
     const roads = pick('bma_flood_road')
     const wet = roads.filter((f) => f.properties.level !== 'normal')
+    const c = props.bundle.sources.bma_flood_road
+    const at = c?.observed_at ?? c?.fetched_at
+    const old = !at || props.now - Date.parse(at) > OLD_MS
     if (!roads.length) out.push({ text: 'ไม่มีจุดวัดน้ำบนถนนในพื้นที่นี้ (ไม่ได้แปลว่าไม่มีน้ำ)', tone: 'info' })
+    else if (old) out.push({ text: `ข้อมูลจุดวัดน้ำบนถนนของ กทม. ยังไม่อัปเดต (ล่าสุด ${fmtTime(at, props.now)}) — ใช้สถานะถนนจากแหล่งนี้ไม่ได้ ดูเรื่องร้องเรียนและกล้องประกอบ`, tone: 'warn' })
     else if (!wet.length) out.push({ text: `ถนนไม่มีน้ำเกินเกณฑ์ทุกจุดวัด (${fmtInt(roads.length)} จุด)`, tone: 'ok' })
     else {
       const d = deepest(wet)!

@@ -83,7 +83,7 @@ watch(mapReady, tryFit)
 
 <template>
   <div class="dash">
-    <AreaSummary v-if="province || district" :bundle="bundle" :province="province" :district="district" />
+    <AreaSummary v-if="province || district" :bundle="bundle" :now="now" :province="province" :district="district" />
     <ClientOnly>
       <NuxtLink v-if="!province && !district && myArea.saved.value" :to="myArea.saved.value.path" class="card myarea">
         <span>★ ย่านของฉัน: <b>{{ myArea.saved.value.label }}</b></span><span aria-hidden="true">›</span>
