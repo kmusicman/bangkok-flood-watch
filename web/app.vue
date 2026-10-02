@@ -23,14 +23,15 @@ const NAV = [
 const isActive = (to: string) => (to === '/' ? route.path === '/' || route.path === '/en/' || route.path === '/en' : route.path.startsWith(to))
 
 // สถิติผู้เข้าชม — ติดเฉพาะเมื่อตั้งค่าไว้ (ดู nuxt.config.ts runtimeConfig.public)
-const { cfBeacon, gaId } = useRuntimeConfig().public
+const { cfBeacon, gaId, adsenseClient } = useRuntimeConfig().public
 const scripts: Record<string, unknown>[] = []
 if (cfBeacon) {
   // Cloudflare Web Analytics: ไม่ใช้คุกกี้ ไม่ระบุตัวบุคคล → ไม่ต้องมี cookie banner
   scripts.push({ src: 'https://static.cloudflareinsights.com/beacon.min.js', defer: true, 'data-cf-beacon': JSON.stringify({ token: cfBeacon }) })
 }
 // Google Analytics โหลดผ่าน <CookieConsent> หลังผู้ใช้กดยอมรับเท่านั้น (PDPA)
-useHead({ script: scripts })
+// AdSense: ยืนยันความเป็นเจ้าของเว็บด้วย meta (ไม่โหลดสคริปต์โฆษณาทุกหน้า — สคริปต์โหลดใน <AdSlot> เมื่อเลื่อนมาถึงเท่านั้น)
+useHead({ script: scripts, meta: adsenseClient ? [{ name: 'google-adsense-account', content: String(adsenseClient) }] : [] })
 </script>
 
 <template>

@@ -58,7 +58,7 @@ watch(() => route.fullPath, (path) => {
   <Transition name="consent">
     <div v-if="show" class="consent card" role="dialog" aria-live="polite" aria-label="การใช้คุกกี้">
       <p class="small">
-        เว็บนี้ใช้คุกกี้ของ Google Analytics เพื่อนับจำนวนผู้เข้าชมและปรับปรุงบริการ ไม่มีการเก็บชื่อหรือเบอร์โทร
+        เว็บนี้ใช้คุกกี้ของ Google Analytics เพื่อนับจำนวนผู้เข้าชม และของ Google AdSense เพื่อเลือกโฆษณาที่ตรงความสนใจ (ไม่ยอมรับ = ยังเห็นโฆษณา 1 ช่องแต่ไม่ใช้ข้อมูลของคุณ) ไม่มีการเก็บชื่อหรือเบอร์โทร
         เปลี่ยนใจภายหลังได้ที่ลิงก์ "ตั้งค่าคุกกี้" ท้ายหน้า
       </p>
       <div class="actions">

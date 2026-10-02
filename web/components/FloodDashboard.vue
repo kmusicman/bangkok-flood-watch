@@ -157,6 +157,8 @@ watch(mapReady, tryFit)
         </div>
       </aside>
     </div>
+
+    <AdSlot />
   </div>
 </template>
 

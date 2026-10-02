@@ -63,6 +63,8 @@ export default defineNuxtConfig({
       // สถิติผู้เข้าชม — ว่าง = ไม่ติด (ดู app.vue)
       cfBeacon: '', // Cloudflare Web Analytics token (NUXT_PUBLIC_CF_BEACON) — ไม่ใช้คุกกี้
       gaId: '', // Google Analytics 4 Measurement ID เช่น G-XXXXXXXXXX (NUXT_PUBLIC_GA_ID)
+      adsenseClient: '', // AdSense publisher เช่น ca-pub-… (NUXT_PUBLIC_ADSENSE_CLIENT) — ใส่แล้วมี meta ยืนยันเว็บ
+      adsenseSlot: '', // id ของหน่วยโฆษณาแบบแสดงผล (NUXT_PUBLIC_ADSENSE_SLOT) — ว่าง = ไม่แสดงช่องโฆษณา
     },
   },
   vite: {
