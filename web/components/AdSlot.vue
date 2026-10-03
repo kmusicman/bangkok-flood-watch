@@ -38,8 +38,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <ClientOnly>
-    <aside v-if="enabled" ref="box" class="ad" aria-label="โฆษณา">
+  <!-- ไม่ครอบ ClientOnly: ต้องมี element ตอน onMounted เพื่อผูก IntersectionObserver (ClientOnly สร้างลูกทีหลัง) -->
+  <aside v-if="enabled" ref="box" class="ad" aria-label="โฆษณา">
       <span class="ad-label small muted">โฆษณา · ช่วยค่าใช้จ่ายเว็บ</span>
       <ins
         class="adsbygoogle"
@@ -49,12 +49,13 @@ onMounted(() => {
         data-ad-format="horizontal"
         data-full-width-responsive="true"
       />
-    </aside>
-  </ClientOnly>
+  </aside>
 </template>
 
 <style scoped>
 /* สูงคงที่กันหน้าเว็บกระโดดตอนโฆษณาโหลด และไม่ให้สูงเกินจนดันเนื้อหา */
 .ad { display: grid; gap: 4px; min-height: 120px; max-height: 300px; overflow: hidden; padding: 8px; border: 1px dashed var(--border); border-radius: 12px; }
 .ad-label { text-align: center; }
+/* ยังไม่ได้รับอนุมัติ / ไม่มีโฆษณาให้แสดง → ซ่อนทั้งกรอบ ไม่ให้เห็นกล่องว่าง (Google อนุญาตให้ซ่อนช่องที่ unfilled) */
+.ad:has(ins[data-ad-status='unfilled']) { display: none; }
 </style>
